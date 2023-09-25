@@ -37,7 +37,7 @@ public static class Audio
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            await Task.Yield();
+            await Task.Delay(1000, cancellationToken);
         }
     }
 
