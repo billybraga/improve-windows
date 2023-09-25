@@ -17,6 +17,5 @@ Global
 		{0AD370FE-0D99-4323-A133-24212A4285E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0AD370FE-0D99-4323-A133-24212A4285E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0AD370FE-0D99-4323-A133-24212A4285E2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0AD370FE-0D99-4323-A133-24212A4285E2}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

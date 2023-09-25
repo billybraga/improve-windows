@@ -5,14 +5,13 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <OutputType>Exe</OutputType>
-        <PublishSingleFile>true</PublishSingleFile>
-        <SelfContained>true</SelfContained>
-        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <ApplicationIcon>Resources\icons8-volume-64.ico</ApplicationIcon>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.0.1" />
+      <PackageReference Include="managedwifi" Version="1.1.0" />
+      <PackageReference Include="System.Management" Version="7.0.2" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,68 +1,33 @@
-﻿using AudioSwitcher.AudioApi.CoreAudio;
-using AudioSwitcher.AudioApi.Observables;
-using AudioSwitcher.AudioApi.Session;
+﻿using System.Runtime.Versioning;
 
 namespace ImproveWindows.Cli;
 
 public static class Program
 {
+    [SupportedOSPlatform("windows")]
     public static async Task Main(string[] _)
     {
+        var cancellationTokenSource = new CancellationTokenSource();
+        var readKeyTask = Task.Run(
+            () =>
+            {
+                Console.ReadKey();
+                cancellationTokenSource.Cancel();
+            }, CancellationToken.None
+        );
         try
         {
-            Console.Write("Starting, ");
-            var coreAudioController = new CoreAudioController();
-            var defaultPlaybackDevice = coreAudioController.DefaultPlaybackDevice;
-            var sessionController = defaultPlaybackDevice.SessionController;
-
-            sessionController.SessionCreated.Subscribe(OnSessionCreated);
-            
-            Console.Write("subscribed, ");
-
-            foreach (var session in await sessionController.AllAsync())
-            {
-                AdjustSessionVolume(session);
-            }
-            
-            Console.Write("and adjusted. Running, press on a key to quit!");
+            await await Task.WhenAny(
+                Audio.RunAsync(cancellationTokenSource.Token),
+                Network.RunAsync(cancellationTokenSource.Token)
+            );
+            await readKeyTask;
         }
+        catch (OperationCanceledException) { }
         catch (Exception e)
         {
+            Console.Beep();
             Console.WriteLine(e);
-        }
-
-        Console.ReadKey();
-    }
-
-    private static void OnSessionCreated(IAudioSession args)
-    {
-        AdjustSessionVolume(args);
-    }
-
-    private static void AdjustSessionVolume(IAudioSession session)
-    {
-        if (session.IsSystemSession)
-        {
-            session.Volume = 25;
-        }
-        
-        if (session.DisplayName.Equals("microsoft teams", StringComparison.OrdinalIgnoreCase))
-        {
-            session.Volume = 50;
-        }
-
-        if (session.ExecutablePath is not null
-            && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
-            && session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
-        {
-            session.Volume = 25;
-        }
-
-        if (session.ExecutablePath is not null
-            && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
-            && !session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
-        {
-            session.Volume = 100;
         }
     }
 }
