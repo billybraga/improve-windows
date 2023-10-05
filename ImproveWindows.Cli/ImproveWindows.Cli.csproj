@@ -10,7 +10,6 @@
 
     <ItemGroup>
       <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.0.1" />
-      <PackageReference Include="managedwifi" Version="1.1.0" />
       <PackageReference Include="System.Management" Version="7.0.2" />
     </ItemGroup>
 

@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Runtime.Versioning;
-using NativeWifi;
+using ImproveWindows.Cli.Wifi;
+using ImproveWindows.Cli.Wifi.Wlan;
 
 namespace ImproveWindows.Cli;
 
@@ -9,60 +10,75 @@ public static class Network
     [SupportedOSPlatform("windows")]
     public static async Task RunAsync(CancellationToken cancellationToken)
     {
-        var wlanClient = new WlanClient();
+        using var wlanClient = WlanClient.CreateClient();
+        
         Console.WriteLine("Network: Started");
+        bool? state = null;
         while (!cancellationToken.IsCancellationRequested)
+        {
+            CheckNetwork();
+
+            await Task.Delay(5000, cancellationToken);
+        }
+
+        void CheckNetwork()
         {
             var wlanInterfaces = GetWlanInterfaces();
 
             if (wlanInterfaces.Count != 1)
             {
+                state = false;
                 Console.Beep();
-                var names = string.Join(", ", wlanInterfaces.Select(x => x.InterfaceName));
-                Console.WriteLine($"Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
-            }
-            else
-            {
-                var wlanInterface = wlanInterfaces.Single();
-                var dot11PhyType = GetDot11PhyType(wlanInterface);
-                if (dot11PhyType != 10)
-                {
-                    Console.Beep();
-                    Console.WriteLine($"{wlanInterface.InterfaceName} is not running in AX, got PHY type {dot11PhyType}");
-                }
+                var names = string.Join(", ", wlanInterfaces.Select(x => x.Name));
+                Console.WriteLine($"Network: Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
+                return;
             }
 
-            await Task.Delay(5000, cancellationToken);
-        }
-
-        int GetDot11PhyType(WlanClient.WlanInterface wlanInterface)
-        {
-            try
+            var wlanInterface = wlanInterfaces.Single();
+            var dot11PhyType = GetDot11PhyType(wlanInterface);
+            if (dot11PhyType != Dot11PhyType.He)
             {
-                return (int) wlanInterface.CurrentConnection.wlanAssociationAttributes.dot11PhyType;
+                state = false;
+                Console.Beep();
+                Console.WriteLine($"Network: {wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
+                return;
             }
-            catch (Win32Exception)
+
+            if (state != true)
             {
-                return -1;
+                state = true;
+                Console.WriteLine("Network: OK");
             }
         }
-
-        IReadOnlyCollection<WlanClient.WlanInterface> GetWlanInterfaces()
+        
+        IReadOnlyCollection<WlanInterface> GetWlanInterfaces()
         {
             try
             {
                 return wlanClient
                     .Interfaces
                     .Where(x =>
-                        x.InterfaceName.Contains("wi-fi", StringComparison.OrdinalIgnoreCase)
-                        && !x.InterfaceName.Contains("virtual", StringComparison.OrdinalIgnoreCase)
+                        x.Name.Contains("wi-fi", StringComparison.OrdinalIgnoreCase)
+                        && !x.Name.Contains("virtual", StringComparison.OrdinalIgnoreCase)
                     )
                     .ToArray();
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                return ArraySegment<WlanClient.WlanInterface>.Empty;
+                return ArraySegment<WlanInterface>.Empty;
+            }
+        }
+        
+        Dot11PhyType GetDot11PhyType(WlanInterface wlanInterface)
+        {
+            try
+            {
+                return wlanInterface.CurrentConnection.AssociationAttributes.PhyType;
+            }
+            catch (Win32Exception)
+            {
+                return Dot11PhyType.Unknown;
             }
         }
     }

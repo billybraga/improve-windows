@@ -9,7 +9,7 @@ namespace ImproveWindows.Cli;
 
 public static class Audio
 {
-    private const int TeamsNotifLevel = 50;
+    private const int TeamsNotificationsLevel = 50;
     private const int TeamsCallLevel = 100;
 
     private static readonly Func<Process, int> GetParentProcessId = typeof(Process)
@@ -33,8 +33,6 @@ public static class Audio
             AdjustSessionVolume(session);
         }
 
-        Console.WriteLine("Audio: Adjusted");
-
         while (!cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(1000, cancellationToken);
@@ -48,11 +46,10 @@ public static class Audio
 
     private static void AdjustSessionVolume(IAudioSession session)
     {
-        Debug.WriteLine("adjust");
-
         if (session.IsSystemSession)
         {
             session.Volume = 25;
+            Console.WriteLine("Audio: System, 25%");
         }
 
         if (session.DisplayName.Equals("microsoft teams", StringComparison.OrdinalIgnoreCase))
@@ -60,18 +57,19 @@ public static class Audio
             var process = Process.GetProcessById(session.ProcessId);
             var commandLine = process.GetCommandLine();
             var isAudioService = commandLine.Contains("AudioService");
-            session.Volume = isAudioService
-                ? TeamsNotifLevel
-                : TeamsCallLevel;
+            if (isAudioService)
+            {
+                AdjustTeamsNotifications();
+            }
+            else
+            {
+                AdjustTeamsCalls();
+            }
         }
 
         if (session.DisplayName.Equals("Microsoft Teams (work or school)", StringComparison.OrdinalIgnoreCase))
         {
-            var process = Process.GetProcessById(session.ProcessId);
-            var isAudioService = process.MainWindowTitle.Contains("AudioService");
-            session.Volume = isAudioService
-                ? TeamsNotifLevel
-                : TeamsCallLevel;
+            AdjustTeamsCalls();
         }
 
         if (session.DisplayName == "Microsoft Edge WebView2")
@@ -82,7 +80,7 @@ public static class Audio
             var parentProcessCommandLine = parentProcess.GetCommandLine();
             if (parentProcessCommandLine.Contains("--webview-exe-name=ms-teams.exe"))
             {
-                session.Volume = TeamsNotifLevel;
+                AdjustTeamsNotifications();
             }
         }
 
@@ -91,6 +89,7 @@ public static class Audio
             && session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
             session.Volume = 25;
+            Console.WriteLine("Audio: Chrome Beta, 25%");
         }
 
         if (session.ExecutablePath is not null
@@ -98,6 +97,19 @@ public static class Audio
             && !session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
             session.Volume = 100;
+            Console.WriteLine("Audio: Chrome, 100%");
+        }
+        
+        void AdjustTeamsNotifications()
+        {
+            session.Volume = TeamsNotificationsLevel;
+            Console.WriteLine($"Audio: Teams Notifications, {TeamsNotificationsLevel}%");
+        }
+        
+        void AdjustTeamsCalls()
+        {
+            session.Volume = TeamsCallLevel;
+            Console.WriteLine($"Audio: Teams Call, {TeamsCallLevel}%");
         }
     }
 }
