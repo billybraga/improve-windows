@@ -19,7 +19,8 @@ public static class Program
         {
             await await Task.WhenAny(
                 Audio.RunAsync(cancellationTokenSource.Token),
-                Network.RunAsync(cancellationTokenSource.Token)
+                Network.RunAsync(cancellationTokenSource.Token),
+                Memory.RunAsync(cancellationTokenSource.Token)
             );
             await readKeyTask;
         }

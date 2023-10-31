@@ -10,7 +10,10 @@ namespace ImproveWindows.Cli;
 public static class Audio
 {
     private const int TeamsNotificationsLevel = 50;
-    private const int TeamsCallLevel = 100;
+    private const int TeamsCallLevel = 80;
+    private const int ChromeLevel = 100;
+    private const int SystemLevel = 25;
+    private const int YtmLevel = 25;
 
     private static readonly Func<Process, int> GetParentProcessId = typeof(Process)
         .GetProperty("ParentProcessId", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -48,7 +51,7 @@ public static class Audio
     {
         if (session.IsSystemSession)
         {
-            session.Volume = 25;
+            session.Volume = SystemLevel;
             Console.WriteLine("Audio: System, 25%");
         }
 
@@ -88,7 +91,7 @@ public static class Audio
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
-            session.Volume = 25;
+            session.Volume = YtmLevel;
             Console.WriteLine("Audio: Chrome Beta, 25%");
         }
 
@@ -96,7 +99,7 @@ public static class Audio
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && !session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
-            session.Volume = 100;
+            session.Volume = ChromeLevel;
             Console.WriteLine("Audio: Chrome, 100%");
         }
         
