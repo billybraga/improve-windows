@@ -27,13 +27,13 @@ public static class Audio
         var defaultPlaybackDevice = coreAudioController.DefaultPlaybackDevice;
         var sessionController = defaultPlaybackDevice.SessionController;
 
-        sessionController.SessionCreated.Subscribe(OnSessionCreated);
+        sessionController.SessionCreated.Subscribe(ConfigureSession);
 
         Console.WriteLine("Audio: Subscribed");
 
         foreach (var session in await sessionController.AllAsync())
         {
-            AdjustSessionVolume(session);
+            ConfigureSession(session);
         }
 
         while (!cancellationToken.IsCancellationRequested)
@@ -42,17 +42,66 @@ public static class Audio
         }
     }
 
-    private static void OnSessionCreated(IAudioSession args)
+    private static void ConfigureSession(IAudioSession args)
     {
-        AdjustSessionVolume(args);
+        var displayName = args.DisplayName;
+        var disposables = new List<IDisposable>();
+
+        var name = AdjustSessionVolume(args);
+
+        if (name is null)
+        {
+            return;
+        }
+
+        Subscribe(args.VolumeChanged, x => Console.WriteLine($"{name} externally changed to {x.Volume}"));
+
+        Subscribe(args.StateChanged, x =>
+        {
+            if (x.State is AudioSessionState.Expired or AudioSessionState.Inactive)
+            {
+                Dispose();
+            }
+        });
+
+        Subscribe(args.Disconnected, _ => { Dispose(); });
+
+        return;
+
+        void Subscribe<T>(IObservable<T> observable, Action<T> callback)
+        {
+            disposables!.Add(observable.Subscribe(callback));
+        }
+
+        void Dispose()
+        {
+            Console.WriteLine($"Disposing {displayName}");
+            foreach (var disposable in disposables)
+            {
+                disposable.Dispose();
+            }
+        }
     }
 
-    private static void AdjustSessionVolume(IAudioSession session)
+    private static string? AdjustSessionVolume(IAudioSession session)
+    {
+        var sessionInfo = GetSessionInfo(session);
+        if (sessionInfo is null)
+        {
+            return null;
+        }
+
+        var (name, volume) = sessionInfo.Value;
+        session.Volume = volume;
+        Console.WriteLine($"Audio: {name}, {volume}%");
+        return name;
+    }
+
+    private static (string Name, int Volume)? GetSessionInfo(IAudioSession session)
     {
         if (session.IsSystemSession)
         {
-            session.Volume = SystemLevel;
-            Console.WriteLine("Audio: System, 25%");
+            return ("System", SystemLevel);
         }
 
         if (session.DisplayName.Equals("microsoft teams", StringComparison.OrdinalIgnoreCase))
@@ -60,19 +109,14 @@ public static class Audio
             var process = Process.GetProcessById(session.ProcessId);
             var commandLine = process.GetCommandLine();
             var isAudioService = commandLine.Contains("AudioService");
-            if (isAudioService)
-            {
-                AdjustTeamsNotifications();
-            }
-            else
-            {
-                AdjustTeamsCalls();
-            }
+            return isAudioService
+                ? AdjustTeamsNotifications()
+                : AdjustTeamsCalls();
         }
 
         if (session.DisplayName.Equals("Microsoft Teams (work or school)", StringComparison.OrdinalIgnoreCase))
         {
-            AdjustTeamsCalls();
+            return AdjustTeamsCalls();
         }
 
         if (session.DisplayName == "Microsoft Edge WebView2")
@@ -83,7 +127,7 @@ public static class Audio
             var parentProcessCommandLine = parentProcess.GetCommandLine();
             if (parentProcessCommandLine.Contains("--webview-exe-name=ms-teams.exe"))
             {
-                AdjustTeamsNotifications();
+                return AdjustTeamsNotifications();
             }
         }
 
@@ -91,28 +135,26 @@ public static class Audio
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
-            session.Volume = YtmLevel;
-            Console.WriteLine("Audio: Chrome Beta, 25%");
+            return ("Chrome Beta", YtmLevel);
         }
 
         if (session.ExecutablePath is not null
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && !session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
-            session.Volume = ChromeLevel;
-            Console.WriteLine("Audio: Chrome, 100%");
+            return ("Chrome", ChromeLevel);
         }
-        
-        void AdjustTeamsNotifications()
+
+        return null;
+
+        (string Name, int Volume) AdjustTeamsNotifications()
         {
-            session.Volume = TeamsNotificationsLevel;
-            Console.WriteLine($"Audio: Teams Notifications, {TeamsNotificationsLevel}%");
+            return ("Teams Notifications", TeamsNotificationsLevel);
         }
-        
-        void AdjustTeamsCalls()
+
+        (string Name, int Volume) AdjustTeamsCalls()
         {
-            session.Volume = TeamsCallLevel;
-            Console.WriteLine($"Audio: Teams Call, {TeamsCallLevel}%");
+            return ("Teams Call", TeamsCallLevel);
         }
     }
 }

@@ -5,10 +5,11 @@ namespace ImproveWindows.Cli;
 public static class Memory
 {
     private const int MaxMemory = 200;
-    private const int IdealMemory = MaxMemory / 4;
+    private const int IdealMemory = MaxMemory / 2;
 
     public static async Task RunAsync(CancellationToken cancellationToken)
     {
+        Console.WriteLine("Monitoring process memory usage");
         while (!cancellationToken.IsCancellationRequested)
         {
             var isWorkDayTime = DateTime.Now.Hour is >= 8 and <= 17;
