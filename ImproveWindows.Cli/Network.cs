@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Net.NetworkInformation;
 using System.Runtime.Versioning;
 using ImproveWindows.Cli.Wifi;
 using ImproveWindows.Cli.Wifi.Wlan;
@@ -7,13 +8,21 @@ namespace ImproveWindows.Cli;
 
 public static class Network
 {
+    enum NetState
+    {
+        None,
+        EthernetOk,
+        WifiOk,
+        WifiBad,
+    }
+    
     [SupportedOSPlatform("windows")]
     public static async Task RunAsync(CancellationToken cancellationToken)
     {
         using var wlanClient = WlanClient.CreateClient();
         
         Console.WriteLine("Network: Started");
-        bool? state = null;
+        var state = NetState.None;
         while (!cancellationToken.IsCancellationRequested)
         {
             CheckNetwork();
@@ -23,31 +32,61 @@ public static class Network
 
         void CheckNetwork()
         {
-            var wlanInterfaces = GetWlanInterfaces();
-
-            if (wlanInterfaces.Count != 1)
+            var newState = NetState.None;
+            var lanInterfaces = GetLanInterfaces();
+            if (lanInterfaces.Any())
             {
-                state = false;
-                Console.Beep();
-                var names = string.Join(", ", wlanInterfaces.Select(x => x.Name));
-                Console.WriteLine($"Network: Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
-                return;
+                newState = NetState.EthernetOk;
+            }
+            else
+            {
+                var wlanInterfaces = GetWlanInterfaces();
+
+                if (wlanInterfaces.Count != 1)
+                {
+                    state = NetState.WifiBad;
+                    Console.Beep();
+                    var names = string.Join(", ", wlanInterfaces.Select(x => x.Name));
+                    Console.WriteLine($"Network: Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
+                    return;
+                }
+
+                var wlanInterface = wlanInterfaces.Single();
+                var dot11PhyType = GetDot11PhyType(wlanInterface);
+                if (dot11PhyType != Dot11PhyType.He)
+                {
+                    state = NetState.WifiBad;
+                    Console.Beep();
+                    Console.WriteLine($"Network: {wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
+                    return;
+                }
+                
+                newState = NetState.WifiOk;
             }
 
-            var wlanInterface = wlanInterfaces.Single();
-            var dot11PhyType = GetDot11PhyType(wlanInterface);
-            if (dot11PhyType != Dot11PhyType.He)
+            if (newState != state)
             {
-                state = false;
-                Console.Beep();
-                Console.WriteLine($"Network: {wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
-                return;
+                state = newState;
+                Console.WriteLine($"Network: {state}");
             }
-
-            if (state != true)
+        }
+        
+        IReadOnlyCollection<NetworkInterface> GetLanInterfaces()
+        {
+            try
             {
-                state = true;
-                Console.WriteLine("Network: OK");
+                return NetworkInterface
+                    .GetAllNetworkInterfaces()
+                    .Where(x =>
+                        x is { NetworkInterfaceType: NetworkInterfaceType.Ethernet, IsReceiveOnly: false, OperationalStatus: OperationalStatus.Up }
+                        && x.GetIPProperties().GatewayAddresses.Any()
+                    )
+                    .ToArray();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return ArraySegment<NetworkInterface>.Empty;
             }
         }
         

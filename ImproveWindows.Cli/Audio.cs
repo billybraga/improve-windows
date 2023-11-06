@@ -44,7 +44,6 @@ public static class Audio
 
     private static void ConfigureSession(IAudioSession args)
     {
-        var displayName = args.DisplayName;
         var disposables = new List<IDisposable>();
 
         var name = AdjustSessionVolume(args);
@@ -75,7 +74,7 @@ public static class Audio
 
         void Dispose()
         {
-            Console.WriteLine($"Disposing {displayName}");
+            Console.WriteLine($"Audio: {name}, disposing");
             foreach (var disposable in disposables)
             {
                 disposable.Dispose();
