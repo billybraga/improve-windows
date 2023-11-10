@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Net.NetworkInformation;
 using System.Runtime.Versioning;
+using ImproveWindows.Cli.Logging;
 using ImproveWindows.Cli.Wifi;
 using ImproveWindows.Cli.Wifi.Wlan;
 
@@ -8,6 +9,8 @@ namespace ImproveWindows.Cli;
 
 public static class Network
 {
+    private static readonly Logger Logger = new("Network");
+    
     enum NetState
     {
         None,
@@ -21,7 +24,7 @@ public static class Network
     {
         using var wlanClient = WlanClient.CreateClient();
         
-        Console.WriteLine("Network: Started");
+        Logger.Log("Started");
         var state = NetState.None;
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -47,7 +50,7 @@ public static class Network
                     state = NetState.WifiBad;
                     Console.Beep();
                     var names = string.Join(", ", wlanInterfaces.Select(x => x.Name));
-                    Console.WriteLine($"Network: Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
+                    Logger.Log($"Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
                     return;
                 }
 
@@ -57,7 +60,7 @@ public static class Network
                 {
                     state = NetState.WifiBad;
                     Console.Beep();
-                    Console.WriteLine($"Network: {wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
+                    Logger.Log($"{wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
                     return;
                 }
                 
@@ -67,7 +70,7 @@ public static class Network
             if (newState != state)
             {
                 state = newState;
-                Console.WriteLine($"Network: {state}");
+                Logger.Log($"{state}");
             }
         }
         
@@ -85,7 +88,7 @@ public static class Network
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Logger.Log(e);
                 return ArraySegment<NetworkInterface>.Empty;
             }
         }
@@ -104,7 +107,7 @@ public static class Network
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                Logger.Log(e);
                 return ArraySegment<WlanInterface>.Empty;
             }
         }

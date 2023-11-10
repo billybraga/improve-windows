@@ -3,12 +3,15 @@ using System.Reflection;
 using AudioSwitcher.AudioApi.CoreAudio;
 using AudioSwitcher.AudioApi.Observables;
 using AudioSwitcher.AudioApi.Session;
+using ImproveWindows.Cli.Logging;
 using ImproveWindows.Cli.Windows;
 
 namespace ImproveWindows.Cli;
 
 public static class Audio
 {
+    private static readonly Logger Logger = new("Audio");
+    
     private const int TeamsNotificationsLevel = 50;
     private const int TeamsCallLevel = 80;
     private const int ChromeLevel = 100;
@@ -22,14 +25,14 @@ public static class Audio
 
     public static async Task RunAsync(CancellationToken cancellationToken)
     {
-        Console.WriteLine("Audio: Starting");
+        Logger.Log("Starting");
         var coreAudioController = new CoreAudioController();
         var defaultPlaybackDevice = coreAudioController.DefaultPlaybackDevice;
         var sessionController = defaultPlaybackDevice.SessionController;
 
         sessionController.SessionCreated.Subscribe(ConfigureSession);
 
-        Console.WriteLine("Audio: Subscribed");
+        Logger.Log("Subscribed");
 
         foreach (var session in await sessionController.AllAsync())
         {
@@ -53,7 +56,7 @@ public static class Audio
             return;
         }
 
-        Subscribe(args.VolumeChanged, x => Console.WriteLine($"{name} externally changed to {x.Volume}"));
+        Subscribe(args.VolumeChanged, x => Logger.Log($"{name} externally changed to {x.Volume}"));
 
         Subscribe(args.StateChanged, x =>
         {
@@ -74,7 +77,7 @@ public static class Audio
 
         void Dispose()
         {
-            Console.WriteLine($"Audio: {name}, disposing");
+            Logger.Log($"{name}, disposing");
             foreach (var disposable in disposables)
             {
                 disposable.Dispose();
@@ -92,7 +95,7 @@ public static class Audio
 
         var (name, volume) = sessionInfo.Value;
         session.Volume = volume;
-        Console.WriteLine($"Audio: {name}, {volume}%");
+        Logger.Log($"{name}, {volume}%");
         return name;
     }
 
