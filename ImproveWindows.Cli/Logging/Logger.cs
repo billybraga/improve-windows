@@ -16,7 +16,7 @@ public class Logger
     private void LogPrefix()
     {
         var date = DateTime.Now;
-        Console.Write("[{0}-{1}-{2} {3}:{4}:{5}] ", date.Year, date.Month, date.Day, date.Hour, date.Minute, date.Second);
+        Console.Write($"[{date:yyyy-MM-dd HH:mm:ss}] ");
         Console.Write(_key);
     }
 
@@ -24,12 +24,6 @@ public class Logger
     {
         LogPrefix();
         Console.WriteLine(message, args);
-    }
-
-    public void Log(FormattableString message)
-    {
-        LogPrefix();
-        Console.WriteLine(message);
     }
 
     public void Log(Exception exception)
