@@ -1,7 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Net.NetworkInformation;
 using System.Runtime.Versioning;
-using ImproveWindows.Cli.Extensions;
 using ImproveWindows.Cli.Logging;
 using ImproveWindows.Cli.Wifi;
 using ImproveWindows.Cli.Wifi.Wlan;
@@ -10,6 +9,7 @@ namespace ImproveWindows.Cli;
 
 public static class Network
 {
+    private const int HighestGoodPing = 40;
     private static readonly Ping Pinger = new();
     private static readonly Logger Logger = new("Network");
 
@@ -96,13 +96,16 @@ public static class Network
         async Task CheckPingAsync()
         {
             var oldPingState = pingState;
-            
-            pingState = await GetPingStateAsync();
 
-            if (pingState != PingState.Ok)
+            (pingState, var error) = await GetPingStateAsync();
+
+            var criticalError = error is not null && pingState is PingState.Exception or PingState.InvalidStatus;
+            var wasSlowFor5S = pingState == PingState.Slow && oldPingState == PingState.Slow;
+
+            if (criticalError || wasSlowFor5S)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
-                pingState = await GetPingStateAsync();
+                Console.Beep();
+                Logger.Log(error ?? $"Bad ping state: {pingState}");
             }
 
             if (oldPingState != pingState)
@@ -111,32 +114,26 @@ public static class Network
             }
         }
 
-        async Task<PingState> GetPingStateAsync()
+        async Task<(PingState State, string? Error)> GetPingStateAsync()
         {
             try
             {
                 var result = await Pinger.SendPingAsync("google.com");
                 if (result.Status is not IPStatus.Success)
                 {
-                    Console.Beep();
-                    Logger.Log($"Bad ping status: {result.Status}");
-                    return PingState.InvalidStatus;
+                    return (PingState.InvalidStatus, $"Bad ping status: {result.Status}");
                 }
 
-                if (result.RoundtripTime > 40)
+                if (result.RoundtripTime > HighestGoodPing)
                 {
-                    Console.Beep();
-                    Logger.Log($"Slow ping: {result.RoundtripTime}ms");
-                    return PingState.Slow;
+                    return (PingState.Slow, $"Slow ping: {result.RoundtripTime}ms");
                 }
 
-                return PingState.Ok;
+                return (PingState.Ok, null);
             }
             catch (Exception e)
             {
-                Console.Beep();
-                Logger.Log($"Ping exception: {e}");
-                return PingState.Exception;
+                return (PingState.Exception, $"Ping exception: {e}");
             }
         }
 
