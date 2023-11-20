@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.Versioning;
 using ImproveWindows.Cli.Logging;
@@ -10,8 +11,10 @@ namespace ImproveWindows.Cli;
 public static class Network
 {
     private const int HighestGoodPing = 40;
-    private static readonly Ping Pinger = new();
+    private static readonly Ping GooglePinger = new();
+    private static readonly Ping CfPinger = new();
     private static readonly Logger Logger = new("Network");
+    private static readonly IPAddress CloudFlareDnsIpAddress = new IPAddress(new byte[]{1,1,1,1});
 
     enum NetState
     {
@@ -99,13 +102,17 @@ public static class Network
 
             (pingState, var error) = await GetPingStateAsync();
 
-            var criticalError = error is not null && pingState is PingState.Exception or PingState.InvalidStatus;
+            if (error is not null)
+            {
+                Logger.Log(error);
+            }
+
+            var criticalError = pingState is PingState.Exception or PingState.InvalidStatus;
             var wasSlowFor5S = pingState == PingState.Slow && oldPingState == PingState.Slow;
 
             if (criticalError || wasSlowFor5S)
             {
                 Console.Beep();
-                Logger.Log(error ?? $"Bad ping state: {pingState}");
             }
 
             if (oldPingState != pingState)
@@ -118,15 +125,19 @@ public static class Network
         {
             try
             {
-                var result = await Pinger.SendPingAsync("google.com");
-                if (result.Status is not IPStatus.Success)
+                var results = await Task.WhenAll(GooglePinger.SendPingAsync("google.com"), CfPinger.SendPingAsync(CloudFlareDnsIpAddress));
+                var ipStatus = results.Min(x => x.Status);
+                var roundTripTime = results.Min(x => x.RoundtripTime);
+                if (ipStatus is not IPStatus.Success)
                 {
-                    return (PingState.InvalidStatus, $"Bad ping status: {result.Status}");
+                    var statuses = string.Join(", ", results.Select(x => $"{x.Address}: {x.Status}ms"));
+                    return (PingState.InvalidStatus, $"Bad ping status: {statuses}");
                 }
 
-                if (result.RoundtripTime > HighestGoodPing)
+                if (roundTripTime > HighestGoodPing)
                 {
-                    return (PingState.Slow, $"Slow ping: {result.RoundtripTime}ms");
+                    var times = string.Join(", ", results.Select(x => $"{x.Address}: {x.RoundtripTime}ms"));
+                    return (PingState.Slow, $"Slow ping: {times}");
                 }
 
                 return (PingState.Ok, null);
