@@ -10,11 +10,11 @@ namespace ImproveWindows.Cli;
 
 public static class Network
 {
-    private const int HighestGoodPing = 40;
+    private const int HighestGoodPing = 50;
     private static readonly Ping GooglePinger = new();
     private static readonly Ping CfPinger = new();
     private static readonly Logger Logger = new("Network");
-    private static readonly IPAddress CloudFlareDnsIpAddress = new IPAddress(new byte[]{1,1,1,1});
+    private static readonly IPAddress CloudFlareDnsIpAddress = new(new byte[] { 1, 1, 1, 1 });
 
     enum NetState
     {
@@ -41,7 +41,7 @@ public static class Network
         Logger.Log("Started");
         var netState = NetState.None;
         var pingState = PingState.None;
-        
+
         while (!cancellationToken.IsCancellationRequested)
         {
             CheckNetwork();
