@@ -1,0 +1,3 @@
+SetForegroundWindow
+GetForegroundWindow
+SendInput

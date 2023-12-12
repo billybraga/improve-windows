@@ -136,65 +136,42 @@ namespace ImproveWindows.Core.Wifi
         public OneXVariableBlob UserName;
         public OneXVariableBlob Domain;
 
-        public uint HasSessionId
-        {
-            get { return ((uint)((this.bitvector1 & 1u))); }
-            // set {
-            //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
-            // }
-        }
+        public uint HasSessionId => ((uint)((this.bitvector1 & 1u)));
 
-        public uint HasUserToken
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 2u)
-                                / 2)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 2)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
+        // }
+        public uint HasUserToken =>
+            ((uint)(((this.bitvector1 & 2u)
+                / 2)));
 
-        public uint HasOneXUserProfile
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 4u)
-                                / 4)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 4)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 2)
+        //                | this.bitvector1)));
+        // }
+        public uint HasOneXUserProfile =>
+            ((uint)(((this.bitvector1 & 4u)
+                / 4)));
 
-        public uint HasIdentity
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 8u)
-                                / 8)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 8)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 4)
+        //                | this.bitvector1)));
+        // }
+        public uint HasIdentity =>
+            ((uint)(((this.bitvector1 & 8u)
+                / 8)));
 
-        public uint HasUserName
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 16u)
-                                / 16)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 16)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 8)
+        //                | this.bitvector1)));
+        // }
+        public uint HasUserName =>
+            ((uint)(((this.bitvector1 & 16u)
+                / 16)));
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 16)
+        //                | this.bitvector1)));
+        // }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -232,156 +209,98 @@ namespace ImproveWindows.Core.Wifi
         [MarshalAs(UnmanagedType.Bool)] public bool AllowLogonDialogs;
         [MarshalAs(UnmanagedType.Bool)] public bool UserBasedVLan;
 
-        public uint HasOneXSupplicantFlags
-        {
-            get { return ((uint)((this.bitvector1 & 1u))); }
-            // set {
-            //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
-            // }
-        }
+        public uint HasOneXSupplicantFlags => ((uint)((this.bitvector1 & 1u)));
 
-        public uint HasSupplicantMode
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 2u)
-                                / 2)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 2)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
+        // }
+        public uint HasSupplicantMode =>
+            ((uint)(((this.bitvector1 & 2u)
+                / 2)));
 
-        public uint HasAuthMode
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 4u)
-                                / 4)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 4)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 2)
+        //                | this.bitvector1)));
+        // }
+        public uint HasAuthMode =>
+            ((uint)(((this.bitvector1 & 4u)
+                / 4)));
 
-        public uint HasHeldPeriod
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 8u)
-                                / 8)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 8)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 4)
+        //                | this.bitvector1)));
+        // }
+        public uint HasHeldPeriod =>
+            ((uint)(((this.bitvector1 & 8u)
+                / 8)));
 
-        public uint HasAuthPeriod
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 16u)
-                                / 16)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 16)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 8)
+        //                | this.bitvector1)));
+        // }
+        public uint HasAuthPeriod =>
+            ((uint)(((this.bitvector1 & 16u)
+                / 16)));
 
-        public uint HasStartPeriod
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 32u)
-                                / 32)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 32)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 16)
+        //                | this.bitvector1)));
+        // }
+        public uint HasStartPeriod =>
+            ((uint)(((this.bitvector1 & 32u)
+                / 32)));
 
-        public uint HasMaxStart
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 64u)
-                                / 64)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 64)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 32)
+        //                | this.bitvector1)));
+        // }
+        public uint HasMaxStart =>
+            ((uint)(((this.bitvector1 & 64u)
+                / 64)));
 
-        public uint HasMaxAuthFailures
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 128u)
-                                / 128)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 128)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 64)
+        //                | this.bitvector1)));
+        // }
+        public uint HasMaxAuthFailures =>
+            ((uint)(((this.bitvector1 & 128u)
+                / 128)));
 
-        public uint HasNetworkAuthTimeout
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 256u)
-                                / 256)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 256)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 128)
+        //                | this.bitvector1)));
+        // }
+        public uint HasNetworkAuthTimeout =>
+            ((uint)(((this.bitvector1 & 256u)
+                / 256)));
 
-        public uint HasAllowLogonDialogs
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 512u)
-                                / 512)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 512)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 256)
+        //                | this.bitvector1)));
+        // }
+        public uint HasAllowLogonDialogs =>
+            ((uint)(((this.bitvector1 & 512u)
+                / 512)));
 
-        public uint HasNetworkAuthWithUITimeout
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 1024u)
-                                / 1024)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 1024)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 512)
+        //                | this.bitvector1)));
+        // }
+        public uint HasNetworkAuthWithUITimeout =>
+            ((uint)(((this.bitvector1 & 1024u)
+                / 1024)));
 
-        public uint HasUserBasedVLan
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 2048u)
-                                / 2048)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 2048)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 1024)
+        //                | this.bitvector1)));
+        // }
+        public uint HasUserBasedVLan =>
+            ((uint)(((this.bitvector1 & 2048u)
+                / 2048)));
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 2048)
+        //                | this.bitvector1)));
+        // }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -403,26 +322,18 @@ namespace ImproveWindows.Core.Wifi
         public OneXVariableBlob RootCauseString;
         public OneXVariableBlob RepairString;
 
-        public uint HasRootCauseString
-        {
-            get { return ((uint)((this.bitvector1 & 1u))); }
-            // set {
-            //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
-            // }
-        }
+        public uint HasRootCauseString => ((uint)((this.bitvector1 & 1u)));
 
-        public uint HasRepairString
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 2u)
-                                / 2)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 2)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
+        // }
+        public uint HasRepairString =>
+            ((uint)(((this.bitvector1 & 2u)
+                / 2)));
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 2)
+        //                | this.bitvector1)));
+        // }
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -439,26 +350,18 @@ namespace ImproveWindows.Core.Wifi
         public OneXVariableBlob AuthParams;
         public OneXVariableBlob EapError;
 
-        public uint HasOneXAuthParams
-        {
-            get { return ((uint)((this.bitvector1 & 1u))); }
-            // set {
-            //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
-            // }
-        }
+        public uint HasOneXAuthParams => ((uint)((this.bitvector1 & 1u)));
 
-        public uint HasEapError
-        {
-            get
-            {
-                return ((uint)(((this.bitvector1 & 2u)
-                                / 2)));
-            }
-            // set {
-            //    this.bitvector1 = ((uint)(((phy * 2)
-            //                | this.bitvector1)));
-            // }
-        }
+        // set {
+        //    this.bitvector1 = ((uint)((phy | this.bitvector1)));
+        // }
+        public uint HasEapError =>
+            ((uint)(((this.bitvector1 & 2u)
+                / 2)));
+        // set {
+        //    this.bitvector1 = ((uint)(((phy * 2)
+        //                | this.bitvector1)));
+        // }
     }
 
     [StructLayout(LayoutKind.Sequential)]

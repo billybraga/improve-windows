@@ -1,6 +1,5 @@
 ﻿using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
-using System.Security.Permissions;
 
 namespace ImproveWindows.Core.Wifi.Wlan
 {
@@ -30,26 +29,20 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <key><c>true</c> if "autoconf" is enabled; otherwise, <c>false</c>.</key>
         public bool AutoConfEnabled
         {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (bool)QueryInterface(WlanIntfOpcode.AutoconfEnabled); }
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            set { SetInterface(WlanIntfOpcode.AutoconfEnabled, value); }
+            get => (bool)QueryInterface(WlanIntfOpcode.AutoconfEnabled);
+            set => SetInterface(WlanIntfOpcode.AutoconfEnabled, value);
         }
 
         public bool BackgroundScanEnabled
         {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (bool)QueryInterface(WlanIntfOpcode.BackgroundScanEnabled); }
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            set { SetInterface(WlanIntfOpcode.BackgroundScanEnabled, value); }
+            get => (bool)QueryInterface(WlanIntfOpcode.BackgroundScanEnabled);
+            set => SetInterface(WlanIntfOpcode.BackgroundScanEnabled, value);
         }
 
         public WlanRadioState RadioState
         {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (WlanRadioState)QueryInterface(WlanIntfOpcode.RadioState); }
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            set { SetInterface(WlanIntfOpcode.RadioState, value); }
+            get => (WlanRadioState)QueryInterface(WlanIntfOpcode.RadioState);
+            set => SetInterface(WlanIntfOpcode.RadioState, value);
         }
 
         /// <summary>
@@ -58,54 +51,36 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <key>The type of the BSS.</key>
         public Dot11BssType BssType
         {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (Dot11BssType)QueryInterface(WlanIntfOpcode.BssType); }
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            set { SetInterface(WlanIntfOpcode.BssType, value); }
+            get => (Dot11BssType)QueryInterface(WlanIntfOpcode.BssType);
+            set => SetInterface(WlanIntfOpcode.BssType, value);
         }
 
         /// <summary>
         /// Gets the state of the interface.
         /// </summary>
         /// <key>The state of the interface.</key>
-        public WlanInterfaceState State
-        {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (WlanInterfaceState)QueryInterface(WlanIntfOpcode.InterfaceState); }
-        }
+        public WlanInterfaceState State => (WlanInterfaceState)QueryInterface(WlanIntfOpcode.InterfaceState);
 
         /// <summary>
         /// Gets the channel.
         /// </summary>
         /// <key>The channel.</key>
         /// <remarks>Not supported on Windows XP SP2.</remarks>
-        public int Channel
-        {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (int)QueryInterface(WlanIntfOpcode.ChannelNumber); }
-        }
+        public int Channel => (int)QueryInterface(WlanIntfOpcode.ChannelNumber);
 
         /// <summary>
         /// Gets the RSSI.
         /// </summary>
         /// <key>The RSSI.</key>
         /// <remarks>Not supported on Windows XP SP2.</remarks>
-        public int Rssi
-        {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (int)QueryInterface(WlanIntfOpcode.Rssi); }
-        }
+        public int Rssi => (int)QueryInterface(WlanIntfOpcode.Rssi);
 
         /// <summary>
         /// Gets the current operation mode.
         /// </summary>
         /// <key>The current operation mode.</key>
         /// <remarks>Not supported on Windows XP SP2.</remarks>
-        public Dot11OperationMode CurrentOperationMode
-        {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-            get { return (Dot11OperationMode)QueryInterface(WlanIntfOpcode.CurrentOperationMode); }
-        }
+        public Dot11OperationMode CurrentOperationMode => (Dot11OperationMode)QueryInterface(WlanIntfOpcode.CurrentOperationMode);
 
         /// <summary>
         /// Gets the attributes of the current connection.
@@ -114,13 +89,11 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <exception cref="Win32Exception">An exception with code 0x0000139F (The group or resource is not in the correct state to perform the requested operation.) will be thrown if the interface is not connected to a network.</exception>
         public WlanConnectionAttributes CurrentConnection
         {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
             get
             {
                 uint valueSize;
-                IntPtr valuePtr;
                 WlanOpcodeValueType opcodeValueType;
-                Util.ThrowIfError(NativeMethods.WlanQueryInterface(_client.ClientHandle, Guid, WlanIntfOpcode.CurrentConnection, IntPtr.Zero, out valueSize, out valuePtr, out opcodeValueType));
+                Util.ThrowIfError(NativeMethods.WlanQueryInterface(_client.ClientHandle, Guid, WlanIntfOpcode.CurrentConnection, IntPtr.Zero, out valueSize, out var valuePtr, out opcodeValueType));
                 try
                 {
                     return (WlanConnectionAttributes)Marshal.PtrToStructure(valuePtr, typeof(WlanConnectionAttributes));
@@ -160,18 +133,12 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <summary>
         /// Gets network interface name.
         /// </summary>
-        public string Name
-        {
-            get { return NetworkInterface.Name; }
-        }
+        public string Name => NetworkInterface.Name;
 
         /// <summary>
         /// Gets network interface description.
         /// </summary>
-        public string Description
-        {
-            get { return NetworkInterface.Description; }
-        }
+        public string Description => NetworkInterface.Description;
 
         // CONSTRUCTORS ===========================================================
 
@@ -245,7 +212,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <param name="bssType">Value that indicates the BSS type of the network. If a profile is provided, this BSS type must be the same as the one in the profile.</param>
         /// <param name="ssid">Structure that specifies the SSID of the network to connect to. This parameter is optional. When set to <c>null</c>, all SSIDs in the profile will be tried. This parameter must not be <c>null</c> if <paramref name="mode"/> is set to <see cref="WlanConnectionMode.DiscoverySecure"/> or <see cref="WlanConnectionMode.DiscoveryUnsecure"/>.</param>
         /// <param name="flags">Windows XP with SP3 and Wireless LAN API for Windows XP with SP2:  This member must be set to 0.</param>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public void Connect(WlanConnectionMode mode, string profile, PhysicalAddress[] bssids, Dot11BssType bssType, Dot11Ssid? ssid, WlanConnectionFlags flags)
         {
             WlanConnectionParameters cp = new WlanConnectionParameters();
@@ -268,7 +234,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// If <paramref name="temporary"/> is set to <c>false</c> this field contains profile name.
         /// </param>
         /// <param name="temporary">Specifies whether to use a temporary or saved profile.</param>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public void Connect(string profile, bool temporary)
         {
             WlanConnectionMode mode = temporary ? WlanConnectionMode.TemporaryProfile : WlanConnectionMode.Profile;
@@ -280,7 +245,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// </summary>
         /// <param name="ssid">SSID of a network to connect.</param>
         /// <param name="discoverySecure">Whether to use secure discovery.</param>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public void Connect(Dot11Ssid ssid, bool discoverySecure)
         {
             WlanConnectionMode mode = discoverySecure ? WlanConnectionMode.DiscoverySecure : WlanConnectionMode.DiscoveryUnsecure;
@@ -289,8 +253,7 @@ namespace ImproveWindows.Core.Wifi.Wlan
 
         public WlanReasonCode EditProfile(string profileName)
         {
-            WlanReasonCode reasonCode;
-            Util.ThrowIfError(NativeMethods.WlanUIEditProfile(1, profileName, Guid, IntPtr.Zero, WlDisplayPages.WlConnectionPage, IntPtr.Zero, out reasonCode));
+            Util.ThrowIfError(NativeMethods.WlanUIEditProfile(1, profileName, Guid, IntPtr.Zero, WlDisplayPages.WlConnectionPage, IntPtr.Zero, out var reasonCode));
             return reasonCode;
         }
 
@@ -315,9 +278,8 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <returns>The resulting code indicating a success or the reason why the profile wasn't valid.</returns>
         public WlanReasonCode SetProfileXml(WlanProfileFlags flags, string profileXml, bool overwrite)
         {
-            WlanReasonCode reasonCode;
             Util.ThrowIfError(
-                NativeMethods.WlanSetProfile(_client.ClientHandle, Guid, flags, profileXml, null, overwrite, IntPtr.Zero, out reasonCode));
+                NativeMethods.WlanSetProfile(_client.ClientHandle, Guid, flags, profileXml, null, overwrite, IntPtr.Zero, out var reasonCode));
             return reasonCode;
         }
 
@@ -326,14 +288,12 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// </summary>
         /// <param name="profileName">The name of the profile.</param>
         /// <returns>The XML document.</returns>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public string GetProfileXml(string profileName)
         {
-            IntPtr profileXmlPtr;
             WlanProfileFlags flags;
             WlanAccess access;
             Util.ThrowIfError(
-                NativeMethods.WlanGetProfile(_client.ClientHandle, Guid, profileName, IntPtr.Zero, out profileXmlPtr, out flags, out access));
+                NativeMethods.WlanGetProfile(_client.ClientHandle, Guid, profileName, IntPtr.Zero, out var profileXmlPtr, out flags, out access));
             try
             {
                 return Marshal.PtrToStringUni(profileXmlPtr);
@@ -355,7 +315,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// </param>
         /// <param name="temporary">Specifies whether to use a temporary or saved profile.</param>
         /// <returns>Value indicating whether connection attempt finished successfully within specified period of time.</returns>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public bool ConnectSync(string profile, bool temporary, int timeout)
         {
             WlanConnectionMode mode = temporary ? WlanConnectionMode.TemporaryProfile : WlanConnectionMode.Profile;
@@ -368,7 +327,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <param name="ssid">SSID of a network to connect.</param>
         /// <param name="discoverySecure">Whether to use secure discovery.</param>
         /// <returns>Value indicating whether connection attempt finished successfully within specified period of time.</returns>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public bool ConnectSync(Dot11Ssid ssid, bool discoverySecure, int timeout)
         {
             WlanConnectionMode mode = discoverySecure ? WlanConnectionMode.DiscoverySecure : WlanConnectionMode.DiscoveryUnsecure;
@@ -393,7 +351,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <param name="ssid">Structure that specifies the SSID of the network to connect to. This parameter is optional. When set to <c>null</c>, all SSIDs in the profile will be tried. This parameter must not be <c>null</c> if <paramref name="mode"/> is set to <see cref="WlanConnectionMode.DiscoverySecure"/> or <see cref="WlanConnectionMode.DiscoveryUnsecure"/>.</param>
         /// <param name="flags">Windows XP with SP3 and Wireless LAN API for Windows XP with SP2:  This member must be set to 0.</param>
         /// <returns>Value indicating whether connection attempt finished successfully within specified period of time.</returns>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public bool ConnectSync(WlanConnectionMode mode, string profile, PhysicalAddress[] bssids, Dot11BssType bssType, Dot11Ssid? ssid, WlanConnectionFlags flags, int timeout)
         {
             WlanConnectionParameters cp = new WlanConnectionParameters();
@@ -497,7 +454,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <para>Wrap call to this function in try-catch-finally. Place <see cref="DestroyConnectionParameters"/> in finally block.</para>
         /// <para>Parameter validity is described in <see cref="Connect"/> and <see cref="ConnectSync"/> methods.</para>
         /// </remarks>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         private static WlanConnectionParameters CreateConnectionParameters(WlanConnectionMode mode, string profile, PhysicalAddress[]? bssids, Dot11BssType bssType, Dot11Ssid? ssid,
             WlanConnectionFlags flags)
         {
@@ -540,7 +496,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// </summary>
         /// <param name="cp">Structure whose resources will be released.</param>
         /// <remarks>Call to this method should be placed in a finally block.</remarks>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         private static void DestroyConnectionParameters(WlanConnectionParameters cp)
         {
             if (cp.DesiredBssidList != IntPtr.Zero)
@@ -556,7 +511,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
             }
         }
 
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         private void SetInterface(WlanIntfOpcode opCode, Object value)
         {
             IntPtr data;
@@ -590,13 +544,11 @@ namespace ImproveWindows.Core.Wifi.Wlan
             }
         }
 
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         private Object QueryInterface(WlanIntfOpcode opCode)
         {
-            IntPtr data;
             uint dataSize;
             WlanOpcodeValueType opcodeValueType;
-            Util.ThrowIfError(NativeMethods.WlanQueryInterface(_client.ClientHandle, Guid, opCode, IntPtr.Zero, out dataSize, out data, out opcodeValueType));
+            Util.ThrowIfError(NativeMethods.WlanQueryInterface(_client.ClientHandle, Guid, opCode, IntPtr.Zero, out dataSize, out var data, out opcodeValueType));
             try
             {
                 switch (opCode)

@@ -93,19 +93,13 @@ namespace ImproveWindows.Core.Wifi
             return availableSpace / macAddressSize;
         }
 
-        public NdisObjectHeader Header
-        {
-            get { return header; }
-        }
+        public NdisObjectHeader Header => header;
 
-        public Dot11BssidListHeader ListHeader
-        {
-            get { return listHeader; }
-        }
+        public Dot11BssidListHeader ListHeader => listHeader;
 
         public Dot11MacAddress[] Entries
         {
-            get { return bssids; }
+            get => bssids;
             set
             {
                 if (value == null) throw new ArgumentException();
@@ -153,7 +147,7 @@ namespace ImproveWindows.Core.Wifi
 
         public string Ssid
         {
-            get { return Encoding.Default.GetString(ssid, 0, ssidLength); }
+            get => Encoding.Default.GetString(ssid, 0, ssidLength);
             set
             {
                 int length = value.Length > 31 ? 32 : value.Length;
@@ -632,15 +626,9 @@ namespace ImproveWindows.Core.Wifi
         public WlanRawDataHeader[] DataHeaders;
         public WlanRawData[] Data;
 
-        public uint TotalSize
-        {
-            get { return ListHeader.TotalSize; }
-        }
+        public uint TotalSize => ListHeader.TotalSize;
 
-        public uint NumberOfItems
-        {
-            get { return ListHeader.NumberOfItems; }
-        }
+        public uint NumberOfItems => ListHeader.NumberOfItems;
     }
 
     [StructLayout(LayoutKind.Sequential)]

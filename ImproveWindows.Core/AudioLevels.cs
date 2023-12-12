@@ -24,6 +24,8 @@ public class AudioLevels : IAppService
         .GetMethod!
         .CreateDelegate<Func<Process, int>>();
 
+    private IAudioSession? _teamsCapture;
+    
     public AudioLevels(Logger logger)
     {
         _logger = logger;
@@ -34,21 +36,74 @@ public class AudioLevels : IAppService
         _logger.Log("Starting");
         var coreAudioController = new CoreAudioController();
         var defaultPlaybackDevice = coreAudioController.DefaultPlaybackDevice;
-        var sessionController = defaultPlaybackDevice.SessionController;
+        var defaultPlaybackSessionController = defaultPlaybackDevice.SessionController;
 
-        sessionController.SessionCreated.Subscribe(ConfigureSession);
+        defaultPlaybackSessionController.SessionCreated.Subscribe(ConfigureSession);
 
         _logger.Log("Subscribed");
 
-        foreach (var session in await sessionController.AllAsync())
+        foreach (var session in defaultPlaybackSessionController)
         {
             ConfigureSession(session);
+        }
+
+        var defaultCaptureController = coreAudioController.DefaultCaptureDevice.SessionController;
+        defaultCaptureController.SessionCreated.Subscribe(LogCaptureSession);
+
+        foreach (var session in defaultCaptureController)
+        {
+            session.MuteChanged.Subscribe(x => LogCaptureSession(x.Session));
+            session.StateChanged.Subscribe(x => LogCaptureSession(x.Session));
+            session.VolumeChanged.Subscribe(x => LogCaptureSession(x.Session));
+            LogCaptureSession(session);
         }
 
         while (!cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(1000, cancellationToken);
         }
+    }
+
+    public bool? ChangeTeamsMicMuteState()
+    {
+        if (_teamsCapture is null)
+        {
+            return null;
+        }
+
+        _teamsCapture.IsMuted = !_teamsCapture.IsMuted;
+        return _teamsCapture.IsMuted;
+    }
+
+    private async Task BeepsAsync(int count, CancellationToken cancellationToken)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            Console.Beep();
+            if (i < count - 1) ;
+            {
+                await Task.Delay(400, cancellationToken);
+            }
+        }
+    }
+
+    private void LogCaptureSession(IAudioSession captureAudioSession)
+    {
+        if (captureAudioSession.DisplayName.Contains("teams", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_teamsCapture is not null && _teamsCapture != captureAudioSession)
+            {
+                _logger.Log($"Changing teams capture session from \"{_teamsCapture.DisplayName}\" to \"{captureAudioSession.DisplayName}\"");
+            }
+            
+            _teamsCapture = captureAudioSession;
+        }
+        
+        var vol = captureAudioSession.IsMuted ? " -  " : $"{captureAudioSession.Volume:00}%";
+        var state = captureAudioSession.SessionState == AudioSessionState.Active
+            ? ""
+            : $" ({captureAudioSession.SessionState})";
+        _logger.Log($"Capture: [{vol}] {captureAudioSession.DisplayName}{state}");
     }
 
     private void ConfigureSession(IAudioSession args)
@@ -61,7 +116,7 @@ public class AudioLevels : IAppService
         {
             return;
         }
-
+        
         Subscribe(args.VolumeChanged, x => _logger.Log($"{name} externally changed to {x.Volume}"));
 
         Subscribe(
@@ -76,7 +131,7 @@ public class AudioLevels : IAppService
         );
 
         Subscribe(args.Disconnected, _ => { Dispose(); });
-
+        
         return;
 
         void Subscribe<T>(IObservable<T> observable, Action<T> callback)

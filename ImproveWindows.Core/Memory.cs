@@ -7,7 +7,7 @@ namespace ImproveWindows.Core;
 public class Memory : IAppService
 {
     private readonly Logger _logger;
-    private const int MaxMemory = 200;
+    private const int MaxMemory = 264;
     private const int IdealMemory = MaxMemory / 2;
 
     public Memory(Logger logger)

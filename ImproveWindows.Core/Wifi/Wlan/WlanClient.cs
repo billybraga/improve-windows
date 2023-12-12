@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using System.Runtime.InteropServices;
-using System.Security.Permissions;
 
 namespace ImproveWindows.Core.Wifi.Wlan
 {
@@ -15,7 +14,7 @@ namespace ImproveWindows.Core.Wifi.Wlan
 
         private WlanHostedNetwork? _hostedNetwork;
         private readonly object _hostedNetworkLock = new();
-        private NativeMethods.WlanNotificationCallbackDelegate _notificationCallbackDelegate;
+        private readonly NativeMethods.WlanNotificationCallbackDelegate _notificationCallbackDelegate;
 
         // PROPERTIES =============================================================
 
@@ -32,7 +31,7 @@ namespace ImproveWindows.Core.Wifi.Wlan
                         return new Version(2, 0);
                     }
 
-                    if (vs.Major == 5 && vs.Minor >= 1)
+                    if (vs is { Major: 5, Minor: >= 1 })
                     {
                         return new Version(1, 0);
                     }
@@ -48,7 +47,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
 
         public WlanHostedNetwork? HostedNetwork
         {
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
             get
             {
                 if (_hostedNetwork == null)
@@ -73,22 +71,21 @@ namespace ImproveWindows.Core.Wifi.Wlan
             }
         }
 
-        public WlanInterface[] Interfaces
-        {
-            get { return _interfaceList; }
-        }
+        public WlanInterface[] Interfaces => _interfaceList;
 
         // CONSTRUCTORS, DESTRUCTOR ===============================================
 
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         private void ReloadInterfaces()
         {
-            IntPtr listPtr;
             Util.ThrowIfError(
-                NativeMethods.WlanEnumInterfaces(ClientHandle, IntPtr.Zero, out listPtr));
+                NativeMethods.WlanEnumInterfaces(ClientHandle, IntPtr.Zero, out var listPtr)
+            );
             try
             {
-                WlanInterfaceInfoList list = (WlanInterfaceInfoList)Marshal.PtrToStructure(listPtr, typeof(WlanInterfaceInfoList));
+                WlanInterfaceInfoList list = (WlanInterfaceInfoList)(
+                    Marshal.PtrToStructure(listPtr, typeof(WlanInterfaceInfoList))
+                    ?? throw new InvalidOperationException("PtrToStructure returned null")
+                );
                 uint numberOfItems = list.NumberOfItems;
                 Int64 listIterator = listPtr.ToInt64() + Marshal.OffsetOf(typeof(WlanInterfaceInfoList), "InterfaceInfo").ToInt64();
                 WlanInterface[] interfaces = new WlanInterface[numberOfItems];
@@ -96,16 +93,10 @@ namespace ImproveWindows.Core.Wifi.Wlan
                 for (int i = 0; i < numberOfItems; i++)
                 {
                     WlanInterfaceInfo info =
-                        (WlanInterfaceInfo)Marshal.PtrToStructure(new IntPtr(listIterator), typeof(WlanInterfaceInfo));
+                        (WlanInterfaceInfo)(Marshal.PtrToStructure(new IntPtr(listIterator), typeof(WlanInterfaceInfo)) ?? throw new InvalidOperationException("PtrToStructure returned null"));
                     listIterator += Marshal.SizeOf(info);
-                    WlanInterface wlanInterface;
                     currentIfaceGuids.Add(info.Guid);
-                    if (_interfaceMap.ContainsKey(info.Guid))
-                    {
-                        wlanInterface = _interfaceMap[info.Guid];
-                        //wlanInterface.UpdateInfo(info);
-                    }
-                    else
+                    if (!_interfaceMap.TryGetValue(info.Guid, out var wlanInterface))
                     {
                         wlanInterface = WlanInterface.CreateInterface(this, info);
                     }
@@ -139,15 +130,23 @@ namespace ImproveWindows.Core.Wifi.Wlan
         private WlanClient()
         {
             uint clientVersionDword = Util.VersionToDword(ClientVersion);
-            uint negotiatedVersionDword;
-            Util.ThrowIfError(NativeMethods.WlanOpenHandle(clientVersionDword, IntPtr.Zero, out negotiatedVersionDword, out ClientHandle));
+            Util.ThrowIfError(NativeMethods.WlanOpenHandle(clientVersionDword, IntPtr.Zero, out var negotiatedVersionDword, out ClientHandle));
             NegotiatedVersion = Util.DwordToVersion(negotiatedVersionDword);
             try
             {
                 _notificationCallbackDelegate = new NativeMethods.WlanNotificationCallbackDelegate(OnWlanNotification);
                 WlanNotificationSource previousNotificationSource;
-                Util.ThrowIfError(NativeMethods.WlanRegisterNotification(ClientHandle, WlanNotificationSource.All, false, _notificationCallbackDelegate, IntPtr.Zero, IntPtr.Zero,
-                    out previousNotificationSource));
+                Util.ThrowIfError(
+                    NativeMethods.WlanRegisterNotification(
+                        ClientHandle,
+                        WlanNotificationSource.All,
+                        false,
+                        _notificationCallbackDelegate,
+                        IntPtr.Zero,
+                        IntPtr.Zero,
+                        out previousNotificationSource
+                    )
+                );
             }
             catch (Win32Exception)
             {
@@ -180,7 +179,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// <returns>Wlan Client instance.</returns>
         /// <exception cref="Win32Exception">On any error related to opening handle, registering notifications.</exception>
         /// <exception cref="EntryPointNotFound">When WlanApi is not available.</exception>
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public static WlanClient CreateClient()
         {
             WlanClient client = new WlanClient();
@@ -212,8 +210,8 @@ namespace ImproveWindows.Core.Wifi.Wlan
             if (connNotifyData.ReasonCode == WlanReasonCode.Success)
             {
                 IntPtr profileXmlPtr = new IntPtr(
-                    notifyData.Data.ToInt64() +
-                    Marshal.OffsetOf(typeof(WlanConnectionNotificationData), "ProfileXml").ToInt64());
+                    notifyData.Data.ToInt64() + Marshal.OffsetOf(typeof(WlanConnectionNotificationData), "ProfileXml").ToInt64()
+                );
                 connNotifyData.ProfileXml = Marshal.PtrToStringUni(profileXmlPtr);
             }
 
@@ -377,46 +375,30 @@ namespace ImproveWindows.Core.Wifi.Wlan
 
             public bool ShowDeniedNetworks
             {
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                get { return (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.ShowDeniedNetworks); }
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                set { SetAutoConfigParameter(WlanAutoConfOpcode.ShowDeniedNetworks, value); }
+                get => (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.ShowDeniedNetworks);
+                set => SetAutoConfigParameter(WlanAutoConfOpcode.ShowDeniedNetworks, value);
             }
 
-            public WlanPowerSetting PowerSetting
-            {
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                get { return (WlanPowerSetting)QueryAutoConfigParameter(WlanAutoConfOpcode.PowerSetting); }
-            }
+            public WlanPowerSetting PowerSetting => (WlanPowerSetting)QueryAutoConfigParameter(WlanAutoConfOpcode.PowerSetting);
 
-            public bool OnlyUseGroupProfilesForAllowedNetworks
-            {
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                get { return (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.OnlyUseGroupProfilesForAllowedNetworks); }
-            }
+            public bool OnlyUseGroupProfilesForAllowedNetworks => (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.OnlyUseGroupProfilesForAllowedNetworks);
 
             public bool AllowExplicitCredentials
             {
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                get { return (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.AllowExplicitCredentials); }
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                set { SetAutoConfigParameter(WlanAutoConfOpcode.AllowExplicitCredentials, value); }
+                get => (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.AllowExplicitCredentials);
+                set => SetAutoConfigParameter(WlanAutoConfOpcode.AllowExplicitCredentials, value);
             }
 
             public uint BlockPeriod
             {
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                get { return (uint)QueryAutoConfigParameter(WlanAutoConfOpcode.BlockPeriod); }
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                set { SetAutoConfigParameter(WlanAutoConfOpcode.BlockPeriod, value); }
+                get => (uint)QueryAutoConfigParameter(WlanAutoConfOpcode.BlockPeriod);
+                set => SetAutoConfigParameter(WlanAutoConfOpcode.BlockPeriod, value);
             }
 
             public bool AllowVirtualStationExtensibility
             {
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                get { return (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.AllowVirtualStationExtensibility); }
-                [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
-                set { SetAutoConfigParameter(WlanAutoConfOpcode.AllowVirtualStationExtensibility, value); }
+                get => (bool)QueryAutoConfigParameter(WlanAutoConfOpcode.AllowVirtualStationExtensibility);
+                set => SetAutoConfigParameter(WlanAutoConfOpcode.AllowVirtualStationExtensibility, value);
             }
 
             #region AutoConfigInternal
@@ -427,13 +409,11 @@ namespace ImproveWindows.Core.Wifi.Wlan
             /// <param name="opcode">Property to be get.</param>
             /// <returns>Value type.</returns>
             /// <exception cref="Win32Exception">When error occurs during WlanApi call.</exception>
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
             private ValueType QueryAutoConfigParameter(WlanAutoConfOpcode opcode)
             {
                 uint dataSize;
-                IntPtr data;
                 WlanOpcodeValueType valueType;
-                Util.ThrowIfError(NativeMethods.WlanQueryAutoConfigParameter(client.ClientHandle, opcode, IntPtr.Zero, out dataSize, out data, out valueType));
+                Util.ThrowIfError(NativeMethods.WlanQueryAutoConfigParameter(client.ClientHandle, opcode, IntPtr.Zero, out dataSize, out var data, out valueType));
                 ValueType value = null;
                 switch (opcode)
                 {
@@ -464,7 +444,6 @@ namespace ImproveWindows.Core.Wifi.Wlan
             /// <param name="phy">Value to be set.</param>
             /// <exception cref="ArgumentException">If any parameter contains unacceptable phy.</exception>
             /// <exception cref="Win32Exception">When error occurs during WlanApi call.</exception>
-            [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
             private void SetAutoConfigParameter(WlanAutoConfOpcode opcode, object value)
             {
                 int dataSize = Marshal.SizeOf(value);

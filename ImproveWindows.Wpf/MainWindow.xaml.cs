@@ -18,10 +18,11 @@ public partial class MainWindow
     {
         InitializeComponent();
 
-        StartService("AudioLevels", new AudioLevels(new Logger("AudioLevels", Write)));
+        var audioLevels = new AudioLevels(new Logger("AudioLevels", Write));
+        StartService("MicMute", new MicMute(audioLevels, new Logger("MicMute", Write)));
+        StartService("AudioLevels", audioLevels);
         StartService("Network", new Network(new Logger("Network", Write)));
         StartService("Memory", new Memory(new Logger("Memory", Write)));
-        StartService("MicMute", new MicMute(new Logger("MicMute", Write)));
 
         void StartService(string name, IAppService service)
         {

@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
-using System.Security.Permissions;
 using System.Text;
 
 namespace ImproveWindows.Core.Wifi
@@ -116,7 +115,6 @@ namespace ImproveWindows.Core.Wifi
         }
         //=========================================================================
 
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         internal static T ParseStruct<T>(IntPtr pointer, uint size) where T : struct
         {
             int expectedSize = Marshal.SizeOf(typeof(T));

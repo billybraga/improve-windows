@@ -1,6 +1,4 @@
-﻿using System.Security.Permissions;
-
-namespace ImproveWindows.Core.Wifi
+﻿namespace ImproveWindows.Core.Wifi
 {
     public delegate void WlanEventHandler(object sender, WlanEventArgs e);
 
@@ -51,10 +49,7 @@ namespace ImproveWindows.Core.Wifi
     {
         private static WlanEventArgs empty = new WlanEventArgs();
 
-        public static new WlanEventArgs Empty
-        {
-            get { return empty; }
-        }
+        public static new WlanEventArgs Empty => empty;
 
         public Guid InterfaceGuid { get; set; }
         public WlanNotificationSource NotificationSource { get; set; }
@@ -191,7 +186,6 @@ namespace ImproveWindows.Core.Wifi
         {
         }
 
-        [SecurityPermission(SecurityAction.LinkDemand, Flags = SecurityPermissionFlag.UnmanagedCode)]
         public T InterpretStruct<T>() where T : struct
         {
             return Util.ParseStruct<T>(Data, DataSize);

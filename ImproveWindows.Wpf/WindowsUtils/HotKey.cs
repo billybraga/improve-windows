@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
 
-namespace ImproveWindows.Wpf.Windows;
+namespace ImproveWindows.Wpf.WindowsUtils;
 
 public sealed class HotKey : IDisposable
 {
@@ -24,7 +24,6 @@ public sealed class HotKey : IDisposable
     public Action<HotKey>? Action { get; }
     public int Id { get; set; }
 
-    // ******************************************************************
     public HotKey(Key k, KeyModifier keyModifiers, Action<HotKey> action, bool register = true)
     {
         Key = k;
@@ -36,7 +35,6 @@ public sealed class HotKey : IDisposable
         }
     }
 
-    // ******************************************************************
     public bool Register()
     {
         var virtualKeyCode = KeyInterop.VirtualKeyFromKey(Key);
@@ -91,9 +89,7 @@ public sealed class HotKey : IDisposable
                 {
                     if (hotKey.Action != null)
                     {
-                        hotKey.Action.Invoke(
-                            hotKey
-                        );
+                        hotKey.Action(hotKey);
                     }
 
                     handled = true;

@@ -25,8 +25,10 @@ public class Logger
     public void Log(string message, params object[] args)
     {
         LogPrefix();
-        _write(string.Format(message, args));
+        var formattedMessage = string.Format(message, args);
+        _write(formattedMessage);
         _write(Environment.NewLine);
+        Console.WriteLine(formattedMessage);
     }
 
     public void Log(Exception exception)
