@@ -4,7 +4,6 @@ using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
 using AudioSwitcher.AudioApi.Observables;
 using AudioSwitcher.AudioApi.Session;
-using ImproveWindows.Core.Audio;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Core.Windows;
 
@@ -24,7 +23,6 @@ public class AudioLevels : AppService
         .CreateDelegate<Func<Process, int>>();
 
     private IAudioSession? _teamsCaptureSession;
-    private readonly Dictionary<Guid, AudioCaptureDeviceMonitor> _audioCaptureDeviceMonitorsById = new();
 
     public override async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -52,9 +50,6 @@ public class AudioLevels : AppService
                     case DeviceChangedType.DeviceAdded:
                         AddAudioCaptureDevice((CoreAudioDevice)args.Device);
                         break;
-                    case DeviceChangedType.DeviceRemoved:
-                        RemoveAudioCaptureDevice(args.Device.Id);
-                        break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
@@ -72,22 +67,21 @@ public class AudioLevels : AppService
         }
     }
 
-    private void RemoveAudioCaptureDevice(Guid id)
-    {
-        _audioCaptureDeviceMonitorsById.Remove(id, out var removed);
-        removed?.Dispose();
-    }
-
     private void AddAudioCaptureDevice(CoreAudioDevice captureDevice)
     {
-        _audioCaptureDeviceMonitorsById.Add(
-            captureDevice.Id,
-            new AudioCaptureDeviceMonitor(
-                captureDevice,
-                ProcessCaptureSession,
-                ProcessCaptureSessionDisconnection
-            )
-        );
+        var processCaptureSession = ProcessCaptureSession;
+        var processCaptureSessionDisconnection = ProcessCaptureSessionDisconnection;
+        var captureController = captureDevice.SessionController;
+        captureController.SessionCreated.Subscribe(processCaptureSession);
+        captureController.SessionDisconnected.Subscribe(processCaptureSessionDisconnection);
+
+        foreach (var session in captureController)
+        {
+            session.MuteChanged.Subscribe(x => processCaptureSession(x.Session));
+            session.StateChanged.Subscribe(x => processCaptureSession(x.Session));
+            session.VolumeChanged.Subscribe(x => processCaptureSession(x.Session));
+            processCaptureSession(session);
+        }
     }
 
     private void ProcessCaptureSessionDisconnection(string id)
