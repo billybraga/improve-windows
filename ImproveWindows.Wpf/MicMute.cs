@@ -18,23 +18,35 @@ public class MicMute : AppService
             KeyModifier.Ctrl | KeyModifier.Shift | KeyModifier.Alt,
             _ =>
             {
-                audioLevels.ChangeTeamsMicMuteState();
-                SetStatusFromAudio();
+                try
+                {
+                    var isMuted = audioLevels.GetTeamsMicMuteState();
+                    if (isMuted is null)
+                    {
+                        Console.Beep(800, 1000);
+                        return;
+                    }
+
+
+                    Console.Beep(isMuted.Value ? 600 : 1000, 200);
+                    audioLevels.ChangeTeamsMicMuteState();
+                    Console.Beep(isMuted.Value ? 1000 : 600, 200);
+                }
+                finally
+                {
+                    SetStatusFromAudio();
+                }
             }
         );
     }
 
-    private void SetStatusFromAudio(bool beep = true)
+    private void SetStatusFromAudio()
     {
         var isMuted = _audioLevels.GetTeamsMicMuteState();
-        
+
         if (isMuted is null)
         {
             SetStatus("Found no teams to mute", true);
-            if (beep)
-            {
-                Console.Beep();   
-            }
         }
         else
         {
@@ -49,7 +61,7 @@ public class MicMute : AppService
             SetStatus();
             while (!cancellationToken.IsCancellationRequested)
             {
-                SetStatusFromAudio(false);
+                SetStatusFromAudio();
                 await Task.Delay(500, cancellationToken);
             }
         }

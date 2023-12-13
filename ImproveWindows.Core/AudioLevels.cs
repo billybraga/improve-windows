@@ -101,7 +101,10 @@ public class AudioLevels : AppService
         }
 
         UpdateStatus();
-        return _teamsCaptureSession.IsMuted = !_teamsCaptureSession.IsMuted;
+        var newMuteState = !_teamsCaptureSession.IsMuted;
+        _teamsCaptureSession.Device.Mute(newMuteState);
+        _teamsCaptureSession.IsMuted = newMuteState;
+        return newMuteState;
     }
 
     private void UpdateStatus()
