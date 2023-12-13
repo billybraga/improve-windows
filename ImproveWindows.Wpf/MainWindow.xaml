@@ -5,11 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ImproveWindows.Wpf"
         mc:Ignorable="d"
-        Title="Improve Windows" Height="450" Width="800"
+        Title="Improve Windows" Height="800" Width="1500"
         Icon="Resources/icons8-volume-64.ico">
-    <Grid>
-        <ScrollViewer Name="ScrollViewer">
-            <TextBlock Name="TextBlock" ClipToBounds="True"></TextBlock>
-        </ScrollViewer>
+    <Grid Name="MainGrid">
     </Grid>
 </Window>

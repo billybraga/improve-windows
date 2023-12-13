@@ -1,7 +1,8 @@
 ﻿using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using ImproveWindows.Core;
-using ImproveWindows.Core.Logging;
 using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Wpf;
@@ -12,33 +13,44 @@ namespace ImproveWindows.Wpf;
 public partial class MainWindow
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly List<(string Name, Task Task, IAppService Service)> _taskInfos = new();
+    private readonly List<ServiceInfos> _taskInfos = new();
 
+    private record ServiceInfos(string Name, Task Task, AppService Service, ServiceControl ServiceControl);
+    
     public MainWindow()
     {
         InitializeComponent();
-
-        var audioLevels = new AudioLevels(new Logger("AudioLevels", Write));
-        StartService("MicMute", new MicMute(audioLevels, new Logger("MicMute", Write)));
+        
+        var audioLevels = new AudioLevels();
+        StartService("MicMute", new MicMute(audioLevels));
         StartService("AudioLevels", audioLevels);
-        StartService("Network", new Network(new Logger("Network", Write)));
-        StartService("Memory", new Memory(new Logger("Memory", Write)));
+        StartService("Network", new Network());
+        StartService("Memory", new Memory());
 
-        void StartService(string name, IAppService service)
+        void StartService(string name, AppService service)
         {
-            _taskInfos.Add((name, service.RunAsync(_cancellationTokenSource.Token), service));
-        }
-    }
-
-    private void Write(string line)
-    {
-        Dispatcher.Invoke(
-            () =>
+            var serviceControl = new ServiceControl
             {
-                TextBlock.Text += line;
-                ScrollViewer.ScrollToBottom();
-            }
-        );
+                Name =
+                {
+                    Content = name,
+                },
+            };
+            
+            service.OnLog += (_, args) => serviceControl.AddLog(args.Message);
+            service.OnStatusChange += (_, args) => serviceControl.SetStatus(args.Status, args.IsError);
+            
+            MainGrid.ColumnDefinitions.Add(new ColumnDefinition
+            {
+                Width = new GridLength(1, GridUnitType.Star),
+            });
+            
+            MainGrid.Children.Add(serviceControl);
+            
+            serviceControl.SetValue(Grid.ColumnProperty, MainGrid.Children.Count - 1);
+            
+            _taskInfos.Add(new ServiceInfos(name, service.RunAsync(_cancellationTokenSource.Token), service, serviceControl));
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)

@@ -1,42 +1,57 @@
 ﻿using System.Windows.Input;
 using ImproveWindows.Core;
-using ImproveWindows.Core.Logging;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Wpf.WindowsUtils;
 
 namespace ImproveWindows.Wpf;
 
-public class MicMute : IAppService
+public class MicMute : AppService
 {
+    private readonly AudioLevels _audioLevels;
     private readonly HotKey _h;
 
-    public MicMute(AudioLevels audioLevels, Logger logger)
+    public MicMute(AudioLevels audioLevels)
     {
+        _audioLevels = audioLevels;
         _h = new HotKey(
             Key.M,
             KeyModifier.Ctrl | KeyModifier.Shift | KeyModifier.Alt,
             _ =>
             {
-                logger.Log("Changing mute state");
-                var isMuted = audioLevels.ChangeTeamsMicMuteState();
-                
-                if (isMuted is null)
-                {
-                    logger.Log("Could not mute");
-                    Console.Beep();
-                    return;
-                }
-
-                logger.Log(isMuted.Value ? "Muted" : "Unmuted");
+                audioLevels.ChangeTeamsMicMuteState();
+                SetStatusFromAudio();
             }
         );
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken)
+    private void SetStatusFromAudio(bool beep = true)
+    {
+        var isMuted = _audioLevels.GetTeamsMicMuteState();
+        
+        if (isMuted is null)
+        {
+            SetStatus("Found no teams to mute", true);
+            if (beep)
+            {
+                Console.Beep();   
+            }
+        }
+        else
+        {
+            SetStatus(isMuted.Value ? "Muted" : "Opened");
+        }
+    }
+
+    public override async Task RunAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await Task.Delay(-1, cancellationToken);
+            SetStatus();
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                SetStatusFromAudio(false);
+                await Task.Delay(1000, cancellationToken);
+            }
         }
         finally
         {

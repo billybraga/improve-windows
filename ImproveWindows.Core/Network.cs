@@ -1,17 +1,14 @@
 ﻿using System.ComponentModel;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Runtime.Versioning;
-using ImproveWindows.Core.Logging;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Core.Wifi;
 using ImproveWindows.Core.Wifi.Wlan;
 
 namespace ImproveWindows.Core;
 
-public class Network : IAppService
+public class Network : AppService
 {
-    private readonly Logger _logger;
     private const int HighestGoodPing = 50;
     private readonly Ping _googlePinger = new();
     private readonly Ping _cfPinger = new();
@@ -34,17 +31,11 @@ public class Network : IAppService
         Exception,
     }
 
-    public Network(Logger logger)
-    {
-        _logger = logger;
-    }
-
-    [SupportedOSPlatform("windows")]
-    public async Task RunAsync(CancellationToken cancellationToken)
+    public override async Task RunAsync(CancellationToken cancellationToken)
     {
         using var wlanClient = WlanClient.CreateClient();
 
-        _logger.Log("Started");
+        LogInfo("Started");
         var netState = NetState.None;
         var pingState = PingState.None;
 
@@ -76,7 +67,7 @@ public class Network : IAppService
                     netState = NetState.WifiBad;
                     Console.Beep();
                     var names = string.Join(", ", wlanInterfaces.Select(x => x.Name));
-                    _logger.Log($"Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
+                    LogInfo($"Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
                     return;
                 }
 
@@ -86,7 +77,7 @@ public class Network : IAppService
                 {
                     netState = NetState.WifiBad;
                     Console.Beep();
-                    _logger.Log($"{wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
+                    LogInfo($"{wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
                     return;
                 }
 
@@ -99,7 +90,7 @@ public class Network : IAppService
             }
 
             netState = newState;
-            _logger.Log($"{netState}");
+            LogInfo($"{netState}");
         }
 
         async Task CheckPingAsync()
@@ -110,7 +101,7 @@ public class Network : IAppService
 
             if (error is not null)
             {
-                _logger.Log(error);
+                LogInfo(error);
             }
 
             var criticalError = pingState is PingState.Exception or PingState.InvalidStatus;
@@ -123,7 +114,7 @@ public class Network : IAppService
 
             if (oldPingState != pingState)
             {
-                _logger.Log($"Ping state: {pingState}");
+                SetStatus(pingState.ToString(), pingState != PingState.Ok);
             }
         }
 
@@ -168,7 +159,7 @@ public class Network : IAppService
             }
             catch (Exception e)
             {
-                _logger.Log(e);
+                LogError(e);
                 return ArraySegment<NetworkInterface>.Empty;
             }
         }
@@ -187,7 +178,7 @@ public class Network : IAppService
             }
             catch (Exception e)
             {
-                _logger.Log(e);
+                LogError(e);
                 return ArraySegment<WlanInterface>.Empty;
             }
         }

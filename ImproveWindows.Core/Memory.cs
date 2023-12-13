@@ -1,23 +1,16 @@
 ﻿using System.Diagnostics;
-using ImproveWindows.Core.Logging;
 using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Core;
 
-public class Memory : IAppService
+public class Memory : AppService
 {
-    private readonly Logger _logger;
     private const int MaxMemory = 264;
     private const int IdealMemory = MaxMemory / 2;
 
-    public Memory(Logger logger)
+    public override async Task RunAsync(CancellationToken cancellationToken)
     {
-        _logger = logger;
-    }
-
-    public async Task RunAsync(CancellationToken cancellationToken)
-    {
-        _logger.Log("Monitoring process usage");
+        LogInfo("Monitoring process usage");
         while (!cancellationToken.IsCancellationRequested)
         {
             var isWorkDayTime = DateTime.Now.Hour is >= 8 and <= 17;
@@ -26,8 +19,11 @@ public class Memory : IAppService
             {
                 case > IdealMemory when isWorkDayTime:
                 case > MaxMemory:
+                    SetStatus($"{memoryUsage}MB", true);
                     Console.Beep();
-                    _logger.Log($"{memoryUsage}MB");
+                    break;
+                default:
+                    SetStatus();
                     break;
             }
 
