@@ -50,7 +50,7 @@ public class MicMute : AppService
             while (!cancellationToken.IsCancellationRequested)
             {
                 SetStatusFromAudio(false);
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(500, cancellationToken);
             }
         }
         finally

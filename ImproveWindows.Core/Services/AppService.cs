@@ -23,7 +23,7 @@ public abstract class AppService
     {
         OnStatusChange?.Invoke(this, new StatusEventArgs { Status = status ?? "Ok", IsError = isError });
         
-        if (isError && status != null && status != _status)
+        if (status != null && status != _status)
         {
             LogInfo(status);
         }

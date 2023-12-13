@@ -1,8 +1,10 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
 using AudioSwitcher.AudioApi.Observables;
 using AudioSwitcher.AudioApi.Session;
+using ImproveWindows.Core.Audio;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Core.Windows;
 
@@ -22,6 +24,7 @@ public class AudioLevels : AppService
         .CreateDelegate<Func<Process, int>>();
 
     private IAudioSession? _teamsCaptureSession;
+    private readonly Dictionary<Guid, AudioCaptureDeviceMonitor> _audioCaptureDeviceMonitorsById = new();
 
     public override async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -38,21 +41,29 @@ public class AudioLevels : AppService
         {
             ConfigureSession(session);
         }
-        
-        SetStatus();
+
+        UpdateStatus();
+
+        coreAudioController.AudioDeviceChanged.Subscribe(
+            args =>
+            {
+                switch (args.ChangedType)
+                {
+                    case DeviceChangedType.DeviceAdded:
+                        AddAudioCaptureDevice((CoreAudioDevice)args.Device);
+                        break;
+                    case DeviceChangedType.DeviceRemoved:
+                        RemoveAudioCaptureDevice(args.Device.Id);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+        );
 
         foreach (var captureDevice in await coreAudioController.GetCaptureDevicesAsync())
         {
-            var captureController = captureDevice.SessionController;
-            captureController.SessionCreated.Subscribe(LogCaptureSession);
-
-            foreach (var session in captureController)
-            {
-                session.MuteChanged.Subscribe(x => LogCaptureSession(x.Session));
-                session.StateChanged.Subscribe(x => LogCaptureSession(x.Session));
-                session.VolumeChanged.Subscribe(x => LogCaptureSession(x.Session));
-                LogCaptureSession(session);
-            }
+            AddAudioCaptureDevice(captureDevice);
         }
 
         while (!cancellationToken.IsCancellationRequested)
@@ -61,16 +72,54 @@ public class AudioLevels : AppService
         }
     }
 
+    private void RemoveAudioCaptureDevice(Guid id)
+    {
+        _audioCaptureDeviceMonitorsById.Remove(id, out var removed);
+        removed?.Dispose();
+    }
+
+    private void AddAudioCaptureDevice(CoreAudioDevice captureDevice)
+    {
+        _audioCaptureDeviceMonitorsById.Add(
+            captureDevice.Id,
+            new AudioCaptureDeviceMonitor(
+                captureDevice,
+                ProcessCaptureSession,
+                ProcessCaptureSessionDisconnection
+            )
+        );
+    }
+
+    private void ProcessCaptureSessionDisconnection(string id)
+    {
+        if (_teamsCaptureSession?.Id == id)
+        {
+            _teamsCaptureSession = null;
+            UpdateStatus();
+        }
+    }
+
     public bool? ChangeTeamsMicMuteState()
     {
         if (_teamsCaptureSession is null)
         {
-            SetStatus("No teams session", true);
             return null;
         }
 
-        SetStatus();
+        UpdateStatus();
         return _teamsCaptureSession.IsMuted = !_teamsCaptureSession.IsMuted;
+    }
+
+    private void UpdateStatus()
+    {
+        if (_teamsCaptureSession is null)
+        {
+            SetStatus("No teams session", true);
+        }
+        else
+        {
+            SetStatus();
+        }
     }
 
     public bool? GetTeamsMicMuteState()
@@ -78,13 +127,13 @@ public class AudioLevels : AppService
         return _teamsCaptureSession?.IsMuted;
     }
 
-    private void LogCaptureSession(IAudioSession captureAudioSession)
+    private void ProcessCaptureSession(IAudioSession captureAudioSession)
     {
         if (captureAudioSession.IsSystemSession)
         {
             return;
         }
-        
+
         var captureDevice = captureAudioSession.Device;
         if (captureAudioSession.DisplayName.Contains("teams", StringComparison.OrdinalIgnoreCase))
         {
@@ -100,7 +149,7 @@ public class AudioLevels : AppService
                 }
 
                 _teamsCaptureSession = captureAudioSession;
-                SetStatus();
+                UpdateStatus();
             }
         }
 
@@ -108,14 +157,12 @@ public class AudioLevels : AppService
         var state = captureAudioSession.SessionState == AudioSessionState.Active
             ? ""
             : $" ({captureAudioSession.SessionState})";
-        
+
         LogInfo($"Capture: [{vol}] [{captureDevice?.Name}] {captureAudioSession.DisplayName}{state}");
     }
 
     private void ConfigureSession(IAudioSession args)
     {
-        var disposables = new List<IDisposable>();
-
         var name = AdjustSessionVolume(args);
 
         if (name is null)
@@ -123,36 +170,7 @@ public class AudioLevels : AppService
             return;
         }
 
-        Subscribe(args.VolumeChanged, x => LogInfo($"{name} externally changed to {x.Volume}"));
-
-        Subscribe(
-            args.StateChanged,
-            x =>
-            {
-                if (x.State is AudioSessionState.Expired or AudioSessionState.Inactive)
-                {
-                    Dispose();
-                }
-            }
-        );
-
-        Subscribe(args.Disconnected, _ => { Dispose(); });
-
-        return;
-
-        void Subscribe<T>(IObservable<T> observable, Action<T> callback)
-        {
-            disposables.Add(observable.Subscribe(callback));
-        }
-
-        void Dispose()
-        {
-            LogInfo($"{name}, disposing");
-            foreach (var disposable in disposables)
-            {
-                disposable.Dispose();
-            }
-        }
+        args.VolumeChanged.Subscribe(x => LogInfo($"{name} externally changed to {x.Volume}"));
     }
 
     private string? AdjustSessionVolume(IAudioSession session)
