@@ -15,16 +15,13 @@ public class Memory : AppService
         {
             var isWorkDayTime = DateTime.Now.Hour is >= 8 and <= 17;
             var memoryUsage = Process.GetCurrentProcess().PrivateMemorySize64 >> 20;
-            switch (memoryUsage)
+            var shouldAlert = (memoryUsage > IdealMemory && isWorkDayTime) || memoryUsage > MaxMemory;
+
+            SetStatus($"{memoryUsage}MB", shouldAlert);
+            
+            if (shouldAlert)
             {
-                case > IdealMemory when isWorkDayTime:
-                case > MaxMemory:
-                    SetStatus($"{memoryUsage}MB", true);
-                    Console.Beep();
-                    break;
-                default:
-                    SetStatus();
-                    break;
+                Console.Beep();
             }
 
             await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);

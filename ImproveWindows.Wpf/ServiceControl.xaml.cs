@@ -29,7 +29,7 @@ public partial class ServiceControl : UserControl
             () =>
             {
                 Status.Content = status;
-                Status.Foreground = isError ? Brushes.Red : Brushes.Black;
+                Status.Foreground = isError ? Brushes.Red : Brushes.Green;
             }
         );
     }

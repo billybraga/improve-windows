@@ -72,6 +72,10 @@ public class AudioLevels : AppService
         var processCaptureSession = ProcessCaptureSession;
         var processCaptureSessionDisconnection = ProcessCaptureSessionDisconnection;
         var captureController = captureDevice.SessionController;
+        if (captureController is null)
+        {
+            return;
+        }
         captureController.SessionCreated.Subscribe(processCaptureSession);
         captureController.SessionDisconnected.Subscribe(processCaptureSessionDisconnection);
 
