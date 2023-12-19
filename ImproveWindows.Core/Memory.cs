@@ -5,7 +5,7 @@ namespace ImproveWindows.Core;
 
 public class Memory : AppService
 {
-    private const int MaxMemory = 264;
+    private const int MaxMemory = 320;
     private const int IdealMemory = MaxMemory / 2;
 
     public override async Task RunAsync(CancellationToken cancellationToken)
@@ -15,9 +15,10 @@ public class Memory : AppService
         {
             var isWorkDayTime = DateTime.Now.Hour is >= 8 and <= 17;
             var memoryUsage = Process.GetCurrentProcess().PrivateMemorySize64 >> 20;
-            var shouldAlert = (memoryUsage > IdealMemory && isWorkDayTime) || memoryUsage > MaxMemory;
+            var maxMemory = isWorkDayTime ? IdealMemory : MaxMemory; 
+            var shouldAlert = memoryUsage > maxMemory;
 
-            SetStatus($"{memoryUsage}MB", shouldAlert);
+            SetStatus($"{memoryUsage}MB / {maxMemory}MB", shouldAlert);
             
             if (shouldAlert)
             {
