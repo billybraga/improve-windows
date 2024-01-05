@@ -25,7 +25,7 @@ public class Memory : AppService
                 Console.Beep();
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken);
         }
     }
 }

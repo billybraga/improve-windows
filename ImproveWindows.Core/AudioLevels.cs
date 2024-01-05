@@ -115,7 +115,7 @@ public class AudioLevels : AppService
     {
         if (_teamsCaptureSession is null)
         {
-            SetStatus("No teams session", true);
+            SetStatus("No teams session");
         }
         else
         {

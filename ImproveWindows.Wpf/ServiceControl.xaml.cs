@@ -1,10 +1,11 @@
-﻿using System.Windows.Controls;
-using System.Windows.Media;
+﻿using System.Windows.Media;
 
 namespace ImproveWindows.Wpf;
 
-public partial class ServiceControl : UserControl
+public partial class ServiceControl
 {
+    private const int MaxCharCount = 20 * 25;
+
     public ServiceControl()
     {
         InitializeComponent();
@@ -15,12 +16,15 @@ public partial class ServiceControl : UserControl
         var date = DateTime.Now;
         var completeMessage = $"[{date:HH:mm:ss}] {message}\n";
         Dispatcher.InvokeAsync(
-            () =>
-            {
-                Logs.Text += completeMessage;
-                ScrollViewer.ScrollToBottom();
-            }
+            () => { Logs.Text = completeMessage + GetLogsSubstring(); }
         );
+    }
+
+    private string GetLogsSubstring()
+    {
+        return Logs.Text.Length > MaxCharCount
+            ? Logs.Text.Substring(0, Logs.Text.IndexOf('\n', MaxCharCount))
+            : Logs.Text;
     }
 
     public void SetStatus(string status, bool isError)

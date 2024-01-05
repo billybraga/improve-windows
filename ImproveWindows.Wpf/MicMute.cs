@@ -46,7 +46,7 @@ public class MicMute : AppService
 
         if (isMuted is null)
         {
-            SetStatus("Found no teams to mute", true);
+            SetStatus("Found no teams to mute");
         }
         else
         {
