@@ -11,10 +11,16 @@ namespace ImproveWindows.Core;
 
 public class AudioLevels : AppService
 {
+    private readonly struct LevelStateSession
+    {
+        public required string Id { get; init;  }
+        public required int Volume { get; init; }
+    }
+
     private record LevelState(string Name, int ExpectedLevel)
     {
-        public IAudioSession? CurrentSession { get; set; }
-        public bool Valid => CurrentSession is null || Math.Abs(ExpectedLevel - CurrentSession.Volume) < double.Epsilon;
+        public LevelStateSession? CurrentSession { get; set; }
+        public bool Valid => CurrentSession == null || Math.Abs(ExpectedLevel - CurrentSession.Value.Volume) < double.Epsilon;
 
         public override string ToString()
         {
@@ -147,7 +153,7 @@ public class AudioLevels : AppService
 
     private void UpdateStatus()
     {
-        var levels = string.Join(", ", _levels.Where(x => x.CurrentSession is not null));
+        var levels = string.Join(", ", _levels.Where(x => x.CurrentSession != null));
         var error = _levels.Any(x => !x.Valid);
         SetStatus(
             _teamsCaptureSession is null
@@ -242,7 +248,7 @@ public class AudioLevels : AppService
 
     private void UpdateTrackedVolume(LevelState levelState, IAudioSession session)
     {
-        levelState.CurrentSession = session;
+        levelState.CurrentSession = new LevelStateSession { Id = session.Id, Volume = (int) session.Volume };
 
         if (_initialized)
         {

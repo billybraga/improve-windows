@@ -178,7 +178,7 @@ namespace ImproveWindows.Core.Wifi.Wlan
         /// </summary>
         /// <returns>Wlan Client instance.</returns>
         /// <exception cref="Win32Exception">On any error related to opening handle, registering notifications.</exception>
-        /// <exception cref="EntryPointNotFound">When WlanApi is not available.</exception>
+        /// <exception cref="EntryPointNotFoundException">When WlanApi is not available.</exception>
         public static WlanClient CreateClient()
         {
             WlanClient client = new WlanClient();
