@@ -11,11 +11,26 @@ namespace ImproveWindows.Core;
 
 public class AudioLevels : AppService
 {
-    private const int TeamsNotificationsLevel = 50;
-    private const int TeamsCallLevel = 80;
-    private const int ChromeLevel = 100;
-    private const int SystemLevel = 25;
-    private const int YtmLevel = 25;
+    private record LevelState(string Name, int ExpectedLevel)
+    {
+        public IAudioSession? CurrentSession { get; set; }
+        public bool Valid => CurrentSession is null || Math.Abs(ExpectedLevel - CurrentSession.Volume) < double.Epsilon;
+
+        public override string ToString()
+        {
+            var state = Valid
+                ? "✅"
+                : "❌";
+
+            return $"{Name} {state}";
+        }
+    }
+
+    private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50);
+    private static readonly LevelState TeamsCallLevel = new("Call", 80);
+    private static readonly LevelState ChromeLevel = new("Chrome", 100);
+    private static readonly LevelState SystemLevel = new("System", 25);
+    private static readonly LevelState YtmLevel = new("YTM", 25);
 
     private static readonly Func<Process, int> GetParentProcessId = typeof(Process)
         .GetProperty("ParentProcessId", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -23,6 +38,16 @@ public class AudioLevels : AppService
         .CreateDelegate<Func<Process, int>>();
 
     private IAudioSession? _teamsCaptureSession;
+    private bool _initialized;
+
+    private readonly IReadOnlyCollection<LevelState> _levels = new List<LevelState>
+    {
+        TeamsNotificationsLevel,
+        TeamsCallLevel,
+        ChromeLevel,
+        YtmLevel,
+        SystemLevel,
+    };
 
     public override async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -32,6 +57,7 @@ public class AudioLevels : AppService
         var defaultPlaybackSessionController = defaultPlaybackDevice.SessionController;
 
         defaultPlaybackSessionController.SessionCreated.Subscribe(ConfigureSession);
+        defaultPlaybackSessionController.SessionDisconnected.Subscribe(HandleSessionDisconnected);
 
         LogInfo("Subscribed");
 
@@ -39,6 +65,8 @@ public class AudioLevels : AppService
         {
             ConfigureSession(session);
         }
+
+        _initialized = true;
 
         UpdateStatus();
 
@@ -63,7 +91,12 @@ public class AudioLevels : AppService
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            await Task.Delay(1000, cancellationToken);
+            if (_levels.Any(x => !x.Valid))
+            {
+                Console.Beep();
+            }
+
+            await Task.Delay(10000, cancellationToken);
         }
     }
 
@@ -76,6 +109,7 @@ public class AudioLevels : AppService
         {
             return;
         }
+
         captureController.SessionCreated.Subscribe(processCaptureSession);
         captureController.SessionDisconnected.Subscribe(processCaptureSessionDisconnection);
 
@@ -113,14 +147,14 @@ public class AudioLevels : AppService
 
     private void UpdateStatus()
     {
-        if (_teamsCaptureSession is null)
-        {
-            SetStatus("No teams session");
-        }
-        else
-        {
-            SetStatus();
-        }
+        var levels = string.Join(", ", _levels.Where(x => x.CurrentSession is not null));
+        var error = _levels.Any(x => !x.Valid);
+        SetStatus(
+            _teamsCaptureSession is null
+                ? $"No teams session. {levels}"
+                : levels,
+            error
+        );
     }
 
     public bool? GetTeamsMicMuteState()
@@ -162,37 +196,65 @@ public class AudioLevels : AppService
         LogInfo($"Capture: [{vol}] [{captureDevice?.Name}] {captureAudioSession.DisplayName}{state}");
     }
 
+    private void HandleSessionDisconnected(string id)
+    {
+        foreach (var levelState in _levels)
+        {
+            if (levelState.CurrentSession?.Id == id)
+            {
+                levelState.CurrentSession = null;
+                UpdateStatus();
+            }
+        }
+    }
+
     private void ConfigureSession(IAudioSession args)
     {
-        var name = AdjustSessionVolume(args);
+        var state = AdjustSessionVolume(args);
 
-        if (name is null)
+        if (state is null)
         {
             return;
         }
 
-        args.VolumeChanged.Subscribe(x => LogInfo($"{name} externally changed to {x.Volume}"));
+        args.VolumeChanged.Subscribe(
+            x =>
+            {
+                UpdateTrackedVolume(state, x.Session);
+                LogInfo($"{state} externally changed to {x.Volume}");
+            }
+        );
     }
 
-    private string? AdjustSessionVolume(IAudioSession session)
+    private LevelState? AdjustSessionVolume(IAudioSession session)
     {
-        var sessionInfo = GetSessionInfo(session);
-        if (sessionInfo is null)
+        var state = GetSessionInfo(session);
+        if (state is null)
         {
             return null;
         }
 
-        var (name, volume) = sessionInfo.Value;
-        session.Volume = volume;
-        LogInfo($"{name}, {volume}%");
-        return name;
+        session.Volume = state.ExpectedLevel;
+        UpdateTrackedVolume(state, session);
+        LogInfo($"{state}, {session.Volume}%");
+        return state;
     }
 
-    private static (string Name, int Volume)? GetSessionInfo(IAudioSession session)
+    private void UpdateTrackedVolume(LevelState levelState, IAudioSession session)
+    {
+        levelState.CurrentSession = session;
+
+        if (_initialized)
+        {
+            UpdateStatus();
+        }
+    }
+
+    private static LevelState? GetSessionInfo(IAudioSession session)
     {
         if (session.IsSystemSession)
         {
-            return ("System", SystemLevel);
+            return SystemLevel;
         }
 
         if (session.DisplayName.Equals("microsoft teams", StringComparison.OrdinalIgnoreCase))
@@ -226,26 +288,26 @@ public class AudioLevels : AppService
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
-            return ("Chrome Beta", YtmLevel);
+            return YtmLevel;
         }
 
         if (session.ExecutablePath is not null
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && !session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
-            return ("Chrome", ChromeLevel);
+            return ChromeLevel;
         }
 
         return null;
 
-        (string Name, int Volume) AdjustTeamsNotifications()
+        LevelState AdjustTeamsNotifications()
         {
-            return ("Teams Notifications", TeamsNotificationsLevel);
+            return TeamsNotificationsLevel;
         }
 
-        (string Name, int Volume) AdjustTeamsCalls()
+        LevelState AdjustTeamsCalls()
         {
-            return ("Teams Call", TeamsCallLevel);
+            return TeamsCallLevel;
         }
     }
 }
