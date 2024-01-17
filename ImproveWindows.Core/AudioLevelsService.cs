@@ -9,18 +9,34 @@ using ImproveWindows.Core.Windows;
 
 namespace ImproveWindows.Core;
 
-public class AudioLevels : AppService
+public class AudioLevelsService : AppService
 {
     private readonly struct LevelStateSession
     {
-        public required string Id { get; init;  }
+        public required string Id { get; init; }
         public required int Volume { get; init; }
     }
 
-    private record LevelState(string Name, int ExpectedLevel)
+    private record LevelState
     {
         public LevelStateSession? CurrentSession { get; set; }
-        public bool Valid => CurrentSession == null || Math.Abs(ExpectedLevel - CurrentSession.Value.Volume) < double.Epsilon;
+
+        public bool Valid => CurrentSession == null
+            || (
+                CurrentSession.Value.Volume >= MinExpectedLevel
+                && CurrentSession.Value.Volume <= MaxExpectedLevel
+            );
+
+        public string Name { get; init; }
+        public int MinExpectedLevel { get; init; }
+        public int MaxExpectedLevel { get; init; }
+
+        public LevelState(string name, int minExpectedLevel, int? maxExpectedLevel = null)
+        {
+            Name = name;
+            MinExpectedLevel = minExpectedLevel;
+            MaxExpectedLevel = maxExpectedLevel ?? MinExpectedLevel;
+        }
 
         public override string ToString()
         {
@@ -33,7 +49,7 @@ public class AudioLevels : AppService
     }
 
     private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50);
-    private static readonly LevelState TeamsCallLevel = new("Call", 80);
+    private static readonly LevelState TeamsCallLevel = new("Call", 80, 100);
     private static readonly LevelState ChromeLevel = new("Chrome", 100);
     private static readonly LevelState SystemLevel = new("System", 25);
     private static readonly LevelState YtmLevel = new("YTM", 25);
@@ -240,7 +256,7 @@ public class AudioLevels : AppService
             return null;
         }
 
-        session.Volume = state.ExpectedLevel;
+        session.Volume = state.MinExpectedLevel;
         UpdateTrackedVolume(state, session);
         LogInfo($"{state}, {session.Volume}%");
         return state;
@@ -248,7 +264,7 @@ public class AudioLevels : AppService
 
     private void UpdateTrackedVolume(LevelState levelState, IAudioSession session)
     {
-        levelState.CurrentSession = new LevelStateSession { Id = session.Id, Volume = (int) session.Volume };
+        levelState.CurrentSession = new LevelStateSession { Id = session.Id, Volume = (int)session.Volume };
 
         if (_initialized)
         {

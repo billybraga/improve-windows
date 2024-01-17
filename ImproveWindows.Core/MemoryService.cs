@@ -3,7 +3,7 @@ using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Core;
 
-public class Memory : AppService
+public class MemoryService : AppService
 {
     private const int MaxMemory = 320;
     private const int IdealMemory = MaxMemory / 2;

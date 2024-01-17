@@ -21,11 +21,12 @@ public partial class MainWindow
     {
         InitializeComponent();
         
-        var audioLevels = new AudioLevels();
+        var audioLevels = new AudioLevelsService();
         StartService("MicMute", new MicMute(audioLevels));
         StartService("AudioLevels", audioLevels);
-        StartService("Network", new Network());
-        StartService("Memory", new Memory());
+        StartService("Network", new NetworkService());
+        StartService("Memory", new MemoryService());
+        StartService("Window", new WindowService());
 
         void StartService(string name, AppService service)
         {

@@ -7,7 +7,7 @@ using ImproveWindows.Core.Wifi.Wlan;
 
 namespace ImproveWindows.Core;
 
-public class Network : AppService
+public class NetworkService : AppService
 {
     private const int HighestGoodPing = 50;
     private readonly Ping _googlePinger = new();

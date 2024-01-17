@@ -7,12 +7,12 @@ namespace ImproveWindows.Wpf;
 
 public class MicMute : AppService
 {
-    private readonly AudioLevels _audioLevels;
+    private readonly AudioLevelsService audioLevelsService;
     private readonly HotKey _h;
 
-    public MicMute(AudioLevels audioLevels)
+    public MicMute(AudioLevelsService audioLevelsService)
     {
-        _audioLevels = audioLevels;
+        this.audioLevelsService = audioLevelsService;
         _h = new HotKey(
             Key.M,
             KeyModifier.Ctrl | KeyModifier.Shift | KeyModifier.Alt,
@@ -20,7 +20,7 @@ public class MicMute : AppService
             {
                 try
                 {
-                    var isMuted = audioLevels.GetTeamsMicMuteState();
+                    var isMuted = audioLevelsService.GetTeamsMicMuteState();
                     if (isMuted is null)
                     {
                         Console.Beep(800, 1000);
@@ -29,7 +29,7 @@ public class MicMute : AppService
 
 
                     Console.Beep(isMuted.Value ? 600 : 1000, 200);
-                    audioLevels.ChangeTeamsMicMuteState();
+                    audioLevelsService.ChangeTeamsMicMuteState();
                     Console.Beep(isMuted.Value ? 1000 : 600, 200);
                 }
                 finally
@@ -42,7 +42,7 @@ public class MicMute : AppService
 
     private void SetStatusFromAudio()
     {
-        var isMuted = _audioLevels.GetTeamsMicMuteState();
+        var isMuted = audioLevelsService.GetTeamsMicMuteState();
 
         if (isMuted is null)
         {
