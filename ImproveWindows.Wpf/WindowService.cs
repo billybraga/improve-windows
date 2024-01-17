@@ -1,4 +1,5 @@
-﻿using System.Windows.Automation;
+﻿using System.Diagnostics;
+using System.Windows.Automation;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using ImproveWindows.Core.Services;
@@ -8,9 +9,15 @@ namespace ImproveWindows.Wpf;
 public class WindowService : AppService
 {
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(5);
+    private int? _teamsProcessId;
 
     public override async Task RunAsync(CancellationToken cancellationToken)
     {
+        _teamsProcessId = Process
+            .GetProcesses()
+            .FirstOrDefault(x => x.ProcessName == "ms-teams")
+            ?.Id;
+
         Automation.AddAutomationEventHandler(
             eventId: WindowPattern.WindowOpenedEvent,
             element: AutomationElement.RootElement,
@@ -32,26 +39,52 @@ public class WindowService : AppService
                         current = automationElement.Current;
                     }
 
-                    var size = current.BoundingRectangle;
-                    if (size is not { Height: < 500, Width: < 500 } || !current.Name.Contains("Teams"))
+                    if (!current.Name.Contains("Microsoft Teams"))
                     {
-                        LogInfo($"Window opened {current.Name}");
                         return;
                     }
 
-                    LogInfo("Teams thumbnail opened");
+                    if (_teamsProcessId is null)
+                    {
+                        _teamsProcessId = current.ProcessId;
+                        LogInfo("Skipped Teams main window");
+                        return;
+                    }
 
-                    PInvoke.SetWindowPos(
-                        new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
-                        default,
-                        800,
-                        100,
-                        (int)size.Width,
-                        (int)size.Height,
-                        default
-                    );
+                    var size = current.BoundingRectangle;
 
-                    LogInfo("Teams thumbnail moved");
+                    if (size is { Height: < 500, Width: < 500 })
+                    {
+                        LogInfo("Teams thumbnail opened");
+
+                        PInvoke.SetWindowPos(
+                            new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+                            default,
+                            800,
+                            100,
+                            (int)size.Width,
+                            (int)size.Height,
+                            default
+                        );
+
+                        LogInfo("Teams thumbnail moved");
+                    }
+                    else
+                    {
+                        LogInfo("Teams meeting opened");
+
+                        PInvoke.SetWindowPos(
+                            new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+                            default,
+                            -8,
+                            0,
+                            1936,
+                            1058,
+                            default
+                        );
+
+                        LogInfo("Teams meeting moved");
+                    }
                 }
                 catch (Exception e)
                 {
