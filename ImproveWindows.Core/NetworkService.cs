@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using ImproveWindows.Core.Services;
+using ImproveWindows.Core.Structures;
 using ImproveWindows.Core.Wifi;
 using ImproveWindows.Core.Wifi.Wlan;
 
@@ -12,6 +13,7 @@ public class NetworkService : AppService
     private const int HighestGoodPing = 50;
     private readonly Ping _googlePinger = new();
     private readonly Ping _cfPinger = new();
+    private readonly MovingAverage16 _movingAverage = new();
     private static readonly IPAddress CloudFlareDnsIpAddress = new(new byte[] { 1, 1, 1, 1 });
 
     enum NetState
@@ -44,6 +46,8 @@ public class NetworkService : AppService
             CheckNetwork();
 
             await CheckPingAsync();
+            
+            SetStatusKey($"{pingState}, {netState}", $"{pingState} (~{_movingAverage.GetAverage()}ms), {netState}", pingState != PingState.Ok || netState != NetState.WifiOk);
 
             await Task.Delay(5000, cancellationToken);
         }
@@ -111,11 +115,6 @@ public class NetworkService : AppService
             {
                 Console.Beep();
             }
-
-            if (oldPingState != pingState)
-            {
-                SetStatus(pingState.ToString(), pingState != PingState.Ok);
-            }
         }
 
         async Task<(PingState State, string? Error)> GetPingStateAsync()
@@ -124,7 +123,8 @@ public class NetworkService : AppService
             {
                 var results = await Task.WhenAll(_googlePinger.SendPingAsync("google.com"), _cfPinger.SendPingAsync(CloudFlareDnsIpAddress));
                 var ipStatus = results.Min(x => x.Status);
-                var roundTripTime = results.Min(x => x.RoundtripTime);
+                var roundTripTime = (int)results.Min(x => x.RoundtripTime);
+                _movingAverage.Add((int)Math.Round((double)roundTripTime));
                 if (ipStatus is not IPStatus.Success)
                 {
                     var statuses = string.Join(", ", results.Select(x => $"{x.Address}: {x.Status}ms"));
@@ -151,9 +151,10 @@ public class NetworkService : AppService
             {
                 return NetworkInterface
                     .GetAllNetworkInterfaces()
-                    .Where(x =>
-                        x is { NetworkInterfaceType: NetworkInterfaceType.Ethernet, IsReceiveOnly: false, OperationalStatus: OperationalStatus.Up }
-                        && x.GetIPProperties().GatewayAddresses.Any()
+                    .Where(
+                        x =>
+                            x is { NetworkInterfaceType: NetworkInterfaceType.Ethernet, IsReceiveOnly: false, OperationalStatus: OperationalStatus.Up }
+                            && x.GetIPProperties().GatewayAddresses.Any()
                     )
                     .ToArray();
             }
@@ -170,9 +171,10 @@ public class NetworkService : AppService
             {
                 return wlanClient
                     .Interfaces
-                    .Where(x =>
-                        x.Name.Contains("wi-fi", StringComparison.OrdinalIgnoreCase)
-                        && !x.Name.Contains("virtual", StringComparison.OrdinalIgnoreCase)
+                    .Where(
+                        x =>
+                            x.Name.Contains("wi-fi", StringComparison.OrdinalIgnoreCase)
+                            && !x.Name.Contains("virtual", StringComparison.OrdinalIgnoreCase)
                     )
                     .ToArray();
             }

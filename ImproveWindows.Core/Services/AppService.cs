@@ -30,4 +30,16 @@ public abstract class AppService
 
         _status = status;
     }
+
+    protected void SetStatusKey(string statusKey, string? statusMessage = null, bool isError = false)
+    {
+        OnStatusChange?.Invoke(this, new StatusEventArgs { Status = statusMessage ?? "Ok", IsError = isError });
+        
+        if (statusMessage != null && statusKey != _status)
+        {
+            LogInfo(statusMessage);
+        }
+
+        _status = statusKey;
+    }
 }
