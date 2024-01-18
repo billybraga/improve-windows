@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Windows.Automation;
+﻿using System.Windows.Automation;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using ImproveWindows.Core.Services;
@@ -9,20 +8,14 @@ namespace ImproveWindows.Wpf;
 public class WindowService : AppService
 {
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(5);
-    private int? _teamsProcessId;
 
     public override async Task RunAsync(CancellationToken cancellationToken)
     {
-        _teamsProcessId = Process
-            .GetProcesses()
-            .FirstOrDefault(x => x.ProcessName == "ms-teams")
-            ?.Id;
-
         Automation.AddAutomationEventHandler(
-            eventId: WindowPattern.WindowOpenedEvent,
-            element: AutomationElement.RootElement,
-            scope: TreeScope.Children,
-            eventHandler: (sender, _) =>
+            WindowPattern.WindowOpenedEvent,
+            AutomationElement.RootElement,
+            TreeScope.Children,
+            (sender, _) =>
             {
                 try
                 {
@@ -30,28 +23,21 @@ public class WindowService : AppService
                     {
                         return;
                     }
-
-                    var current = automationElement.Current;
-                    var start = DateTime.Now;
-                    while (string.IsNullOrEmpty(current.Name) && (DateTime.Now - start) < MaxWaitForName)
-                    {
-                        Thread.Sleep(100);
-                        current = automationElement.Current;
-                    }
+                    
+                    var current = WaitForName(automationElement);
 
                     if (!current.Name.Contains("Microsoft Teams"))
                     {
                         return;
                     }
+                    
+                    var size = current.BoundingRectangle;
 
-                    if (_teamsProcessId is null)
+                    if (size.Height > 1800)
                     {
-                        _teamsProcessId = current.ProcessId;
-                        LogInfo("Skipped Teams main window");
+                        LogInfo($"Skipped Teams main window (height {size.Height})");
                         return;
                     }
-
-                    var size = current.BoundingRectangle;
 
                     if (size is { Height: < 500, Width: < 500 })
                     {
@@ -92,7 +78,7 @@ public class WindowService : AppService
                 }
             }
         );
-
+        
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -104,5 +90,19 @@ public class WindowService : AppService
         {
             Automation.RemoveAllEventHandlers();
         }
+    }
+
+    private AutomationElement.AutomationElementInformation WaitForName(AutomationElement automationElement)
+    {
+        var current = automationElement.Current;
+        var start = DateTime.Now;
+        
+        while (string.IsNullOrEmpty(current.Name) && (DateTime.Now - start) < MaxWaitForName)
+        {
+            Thread.Sleep(100);
+            current = automationElement.Current;
+        }
+
+        return current;
     }
 }
