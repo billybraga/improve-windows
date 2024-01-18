@@ -1,5 +1,4 @@
 ﻿using System.Windows.Automation;
-using System.Windows.Automation.Peers;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using ImproveWindows.Core.Services;
@@ -47,7 +46,7 @@ public class WindowService : AppService
                         LogInfo("Teams thumbnail opened");
 
                         PInvoke.SetWindowPos(
-                            new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+                            new HWND(new IntPtr(current.NativeWindowHandle)),
                             default,
                             800,
                             100,
@@ -71,7 +70,7 @@ public class WindowService : AppService
                         teamsMeetingTask = (ManageTeamsMeetingWindowAsync(automationElement, cancellationTokenSource.Token), cancellationTokenSource);
 
                         PInvoke.SetWindowPos(
-                            new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+                            new HWND(new IntPtr(current.NativeWindowHandle)),
                             default,
                             -8,
                             0,
@@ -83,6 +82,7 @@ public class WindowService : AppService
                         LogInfo("Teams meeting moved");
                     }
                 }
+                catch (ElementNotAvailableException) {}
                 catch (Exception e)
                 {
                     LogError(e);
@@ -114,7 +114,7 @@ public class WindowService : AppService
                 {
                     return;
                 }
-                
+
                 var menuItems = automationElement.FindAll(
                     TreeScope.Descendants,
                     new OrCondition(
@@ -145,6 +145,9 @@ public class WindowService : AppService
 
                 await Task.Delay(1000, cancellationToken);
             }
+        }
+        catch (ElementNotAvailableException)
+        {
         }
         catch (OperationCanceledException)
         {
