@@ -46,8 +46,12 @@ public class NetworkService : AppService
             CheckNetwork();
 
             await CheckPingAsync();
-            
-            SetStatusKey($"{pingState}, {netState}", $"{pingState} (~{_movingAverage.GetAverage()}ms), {netState}", pingState != PingState.Ok || netState != NetState.WifiOk);
+
+            SetStatusKey(
+                $"{pingState}, {netState}",
+                $"{pingState} (~{_movingAverage.GetAverage()}ms), {netState}",
+                pingState != PingState.Ok || netState is not (NetState.WifiOk or NetState.EthernetOk)
+            );
 
             await Task.Delay(5000, cancellationToken);
         }
