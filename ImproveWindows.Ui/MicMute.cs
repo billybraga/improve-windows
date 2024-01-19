@@ -1,9 +1,9 @@
 ﻿using System.Windows.Input;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
-using ImproveWindows.Wpf.WindowsUtils;
+using ImproveWindows.Ui.WindowsUtils;
 
-namespace ImproveWindows.Wpf;
+namespace ImproveWindows.Ui;
 
 public class MicMute : AppService
 {

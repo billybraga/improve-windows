@@ -1,4 +1,4 @@
-﻿namespace ImproveWindows.Wpf;
+﻿namespace ImproveWindows.Ui;
 
 /// <summary>
 /// Interaction logic for App.xaml

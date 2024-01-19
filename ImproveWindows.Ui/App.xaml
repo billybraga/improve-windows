@@ -1,7 +1,7 @@
-﻿<Application x:Class="ImproveWindows.Wpf.App"
+﻿<Application x:Class="ImproveWindows.Ui.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:ImproveWindows.Wpf"
+             xmlns:local="clr-namespace:ImproveWindows.Ui"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
          

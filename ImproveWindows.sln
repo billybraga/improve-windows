@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionF
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImproveWindows.Core", "ImproveWindows.Core\ImproveWindows.Core.csproj", "{CB6222DB-B400-4CE0-8459-8EC90711193C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImproveWindows.Wpf", "ImproveWindows.Wpf\ImproveWindows.Wpf.csproj", "{63D22008-1089-4BC7-8A89-CFFF6A835B02}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImproveWindows.Ui", "ImproveWindows.Ui\ImproveWindows.Ui.csproj", "{63D22008-1089-4BC7-8A89-CFFF6A835B02}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImproveWindows.Tests", "ImproveWindows.Tests\ImproveWindows.Tests.csproj", "{BB111833-4B3F-4AD2-9E01-CC841ADB113A}"
 EndProject

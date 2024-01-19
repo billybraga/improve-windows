@@ -1,4 +1,4 @@
-namespace ImproveWindows.Wpf.WindowsUtils;
+namespace ImproveWindows.Ui.WindowsUtils;
 
 [Flags]
 public enum KeyModifier

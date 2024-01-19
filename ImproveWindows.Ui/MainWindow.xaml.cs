@@ -5,7 +5,7 @@ using System.Windows.Threading;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
 
-namespace ImproveWindows.Wpf;
+namespace ImproveWindows.Ui;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml

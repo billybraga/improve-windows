@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
 
-namespace ImproveWindows.Wpf.WindowsUtils;
+namespace ImproveWindows.Ui.WindowsUtils;
 
 public sealed class HotKey : IDisposable
 {
