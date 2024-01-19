@@ -4,7 +4,7 @@ namespace ImproveWindows.Ui;
 
 public partial class ServiceControl
 {
-    private const int MaxCharCount = 20 * 25;
+    private const int MaxCharCount = 30 * 40;
 
     public ServiceControl()
     {
