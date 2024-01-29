@@ -1,0 +1,20 @@
+<Project>
+    <ItemGroup>
+        <AssemblyAttribute Include="CLSCompliantAttribute">
+            <_Parameter1>false</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+    <PropertyGroup>
+        <AnalysisLevel>latest</AnalysisLevel>
+        <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+        <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+        <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <MSBuildWarningsAsErrors>true</MSBuildWarningsAsErrors>
+        <Nullable>enable</Nullable>
+        <Optimize>true</Optimize>
+        <TargetFramework>net8.0</TargetFramework>
+        <WarningsAsErrors>true</WarningsAsErrors>
+    </PropertyGroup>
+</Project>

@@ -1,0 +1,25 @@
+[*]
+dotnet_diagnostic.SYSLIB1054.severity = suggestion
+dotnet_diagnostic.ca1003.severity = suggestion
+dotnet_diagnostic.ca1008.severity = suggestion
+dotnet_diagnostic.ca1027.severity = suggestion
+dotnet_diagnostic.ca1028.severity = suggestion
+dotnet_diagnostic.ca1034.severity = suggestion
+dotnet_diagnostic.ca1066.severity = suggestion
+dotnet_diagnostic.ca1305.severity = suggestion
+dotnet_diagnostic.ca1502.severity = suggestion
+dotnet_diagnostic.ca1710.severity = suggestion
+dotnet_diagnostic.ca1711.severity = suggestion
+dotnet_diagnostic.ca1712.severity = suggestion
+dotnet_diagnostic.ca1720.severity = suggestion
+dotnet_diagnostic.ca1806.severity = suggestion
+dotnet_diagnostic.ca1815.severity = suggestion
+dotnet_diagnostic.ca1816.severity = suggestion
+dotnet_diagnostic.ca1819.severity = suggestion
+dotnet_diagnostic.ca1822.severity = suggestion
+dotnet_diagnostic.ca1838.severity = suggestion
+dotnet_diagnostic.ca1854.severity = suggestion
+dotnet_diagnostic.ca2208.severity = suggestion
+dotnet_diagnostic.ca2217.severity = suggestion
+dotnet_diagnostic.ca2231.severity = suggestion
+dotnet_diagnostic.ca5392.severity = suggestion

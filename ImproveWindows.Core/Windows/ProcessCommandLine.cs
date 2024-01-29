@@ -5,89 +5,6 @@ namespace ImproveWindows.Core.Windows;
 
 public static class ProcessCommandLineExtensions
 {
-    private static class Win32Native
-    {
-        public const uint ProcessBasicInformationValue = 0;
-
-        [Flags]
-        public enum OpenProcessDesiredAccessFlags : uint
-        {
-            ProcessVmRead = 0x0010,
-            ProcessQueryInformation = 0x0400,
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct ProcessBasicInformation
-        {
-            private readonly IntPtr Reserved1;
-            public readonly IntPtr PebBaseAddress;
-
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-            private readonly IntPtr[] Reserved2;
-
-            private readonly IntPtr UniqueProcessId;
-            private readonly IntPtr Reserved3;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct UnicodeString
-        {
-            private readonly ushort Length;
-            public readonly ushort MaximumLength;
-            public readonly IntPtr Buffer;
-        }
-
-        // This is not the real struct!
-        // I faked it to get ProcessParameters address.
-        // Actual struct definition:
-        // https://learn.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb
-        [StructLayout(LayoutKind.Sequential)]
-        public struct Peb
-        {
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)]
-            private readonly IntPtr[] Reserved;
-
-            public readonly IntPtr ProcessParameters;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct RtlUserProcessParameters
-        {
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-            private readonly byte[] Reserved1;
-
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)]
-            private readonly IntPtr[] Reserved2;
-
-            private readonly UnicodeString ImagePathName;
-            public readonly UnicodeString CommandLine;
-        }
-
-        [DllImport("ntdll.dll")]
-        public static extern uint NtQueryInformationProcess(
-            IntPtr processHandle,
-            uint processInformationClass,
-            IntPtr processInformation,
-            uint processInformationLength,
-            out uint returnLength);
-
-        [DllImport("kernel32.dll")]
-        public static extern IntPtr OpenProcess(
-            OpenProcessDesiredAccessFlags dwDesiredAccess,
-            [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle,
-            uint dwProcessId);
-
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool ReadProcessMemory(
-            IntPtr hProcess, IntPtr lpBaseAddress, IntPtr lpBuffer,
-            uint nSize, out uint lpNumberOfBytesRead);
-
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool CloseHandle(IntPtr hObject);
-    }
-
     private static bool ReadStructFromProcessMemory<TStruct>(
         IntPtr hProcess, IntPtr lpBaseAddress, out TStruct? val)
     {
@@ -96,7 +13,7 @@ public static class ProcessCommandLineExtensions
         var mem = Marshal.AllocHGlobal(structSize);
         try
         {
-            if (Win32Native.ReadProcessMemory(
+            if (NativeMethods.ReadProcessMemory(
                     hProcess, lpBaseAddress, mem, (uint)structSize, out var len) &&
                 (len == structSize))
             {
@@ -114,9 +31,9 @@ public static class ProcessCommandLineExtensions
 
     public static string GetCommandLine(this Process process)
     {
-        var hProcess = Win32Native.OpenProcess(
-            Win32Native.OpenProcessDesiredAccessFlags.ProcessQueryInformation |
-            Win32Native.OpenProcessDesiredAccessFlags.ProcessVmRead, false, (uint)process.Id);
+        var hProcess = NativeMethods.OpenProcess(
+            NativeMethods.OpenProcessDesiredAccessFlags.ProcessQueryInformation |
+            NativeMethods.OpenProcessDesiredAccessFlags.ProcessVmRead, false, (uint)process.Id);
         
         if (hProcess == IntPtr.Zero)
         {
@@ -126,12 +43,12 @@ public static class ProcessCommandLineExtensions
 
         try
         {
-            var sizePbi = Marshal.SizeOf<Win32Native.ProcessBasicInformation>();
+            var sizePbi = Marshal.SizeOf<NativeMethods.ProcessBasicInformation>();
             var memPbi = Marshal.AllocHGlobal(sizePbi);
             try
             {
-                var ret = Win32Native.NtQueryInformationProcess(
-                    hProcess, Win32Native.ProcessBasicInformationValue, memPbi,
+                var ret = NativeMethods.NtQueryInformationProcess(
+                    hProcess, NativeMethods.ProcessBasicInformationValue, memPbi,
                     (uint)sizePbi, out _);
 
                 if (0 != ret)
@@ -140,21 +57,21 @@ public static class ProcessCommandLineExtensions
                     throw new InvalidOperationException("NtQueryInformationProcess failed");
                 }
 
-                var pbiInfo = Marshal.PtrToStructure<Win32Native.ProcessBasicInformation>(memPbi);
+                var pbiInfo = Marshal.PtrToStructure<NativeMethods.ProcessBasicInformation>(memPbi);
                 if (pbiInfo.PebBaseAddress == IntPtr.Zero)
                 {
                     // PebBaseAddress is null
                     throw new InvalidOperationException("PebBaseAddress is null");
                 }
 
-                if (!ReadStructFromProcessMemory<Win32Native.Peb>(hProcess,
+                if (!ReadStructFromProcessMemory<NativeMethods.Peb>(hProcess,
                         pbiInfo.PebBaseAddress, out var pebInfo))
                 {
                     // couldn't read PEB information
                     throw new InvalidOperationException("couldn't read PEB information");
                 }
 
-                if (!ReadStructFromProcessMemory<Win32Native.RtlUserProcessParameters>(
+                if (!ReadStructFromProcessMemory<NativeMethods.RtlUserProcessParameters>(
                         hProcess, pebInfo.ProcessParameters, out var rtlParamsInfo))
                 {
                     // couldn't read ProcessParameters
@@ -165,7 +82,7 @@ public static class ProcessCommandLineExtensions
                 var memCl = Marshal.AllocHGlobal(clLen);
                 try
                 {
-                    if (!Win32Native.ReadProcessMemory(hProcess,
+                    if (!NativeMethods.ReadProcessMemory(hProcess,
                             rtlParamsInfo.CommandLine.Buffer, memCl, clLen, out _))
                     {
                         // couldn't read command line buffer
@@ -187,7 +104,7 @@ public static class ProcessCommandLineExtensions
         }
         finally
         {
-            Win32Native.CloseHandle(hProcess);
+            NativeMethods.CloseHandle(hProcess);
         }
     }
 }

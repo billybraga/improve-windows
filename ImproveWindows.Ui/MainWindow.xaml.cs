@@ -10,7 +10,7 @@ namespace ImproveWindows.Ui;
 /// <summary>
 /// Interaction logic for MainWindow.xaml
 /// </summary>
-public partial class MainWindow
+public sealed partial class MainWindow : IDisposable
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly List<ServiceInfos> _taskInfos = new();
@@ -21,18 +21,20 @@ public partial class MainWindow
     {
         InitializeComponent();
         
+#pragma warning disable CA2000
         var audioLevels = new AudioLevelsService();
         StartService("MicMute", new MicMute(audioLevels));
         StartService("AudioLevels", audioLevels);
         StartService("Network", new NetworkService());
         StartService("Memory", new MemoryService());
         StartService("Window", new WindowService());
+#pragma warning restore CA2000
 
         void StartService(string name, AppService service)
         {
             var serviceControl = new ServiceControl
             {
-                Name =
+                ServiceName =
                 {
                     Content = name,
                 },
@@ -76,5 +78,10 @@ public partial class MainWindow
         );
         _cancellationTokenSource.Dispose();
         base.OnClosing(e);
+    }
+
+    public void Dispose()
+    {
+        _cancellationTokenSource.Dispose();
     }
 }

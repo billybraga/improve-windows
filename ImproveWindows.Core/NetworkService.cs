@@ -8,7 +8,7 @@ using ImproveWindows.Core.Wifi.Wlan;
 
 namespace ImproveWindows.Core;
 
-public class NetworkService : AppService
+public sealed class NetworkService : AppService, IDisposable
 {
     private const int HighestGoodPing = 50;
     private readonly Ping _googlePinger = new();
@@ -16,7 +16,7 @@ public class NetworkService : AppService
     private readonly MovingAverage16 _movingAverage = new();
     private static readonly IPAddress CloudFlareDnsIpAddress = new(new byte[] { 1, 1, 1, 1 });
 
-    enum NetState
+    private enum NetState
     {
         None,
         EthernetOk,
@@ -24,7 +24,7 @@ public class NetworkService : AppService
         WifiBad,
     }
 
-    enum PingState
+    private enum PingState
     {
         None,
         Ok,
@@ -33,7 +33,7 @@ public class NetworkService : AppService
         Exception,
     }
 
-    public override async Task RunAsync(CancellationToken cancellationToken)
+    protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         using var wlanClient = WlanClient.CreateClient();
 
@@ -62,7 +62,7 @@ public class NetworkService : AppService
         {
             NetState newState;
             var lanInterfaces = GetLanInterfaces();
-            if (lanInterfaces.Any())
+            if (lanInterfaces.Count != 0)
             {
                 newState = NetState.EthernetOk;
             }
@@ -158,7 +158,7 @@ public class NetworkService : AppService
                     .Where(
                         x =>
                             x is { NetworkInterfaceType: NetworkInterfaceType.Ethernet, IsReceiveOnly: false, OperationalStatus: OperationalStatus.Up }
-                            && x.GetIPProperties().GatewayAddresses.Any()
+                            && x.GetIPProperties().GatewayAddresses.Count != 0
                     )
                     .ToArray();
             }
@@ -200,5 +200,11 @@ public class NetworkService : AppService
                 return Dot11PhyType.Unknown;
             }
         }
+    }
+
+    public void Dispose()
+    {
+        _googlePinger.Dispose();
+        _cfPinger.Dispose();
     }
 }

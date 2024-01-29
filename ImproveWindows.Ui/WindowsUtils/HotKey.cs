@@ -1,58 +1,55 @@
 ﻿using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.Input.KeyboardAndMouse;
 
 namespace ImproveWindows.Ui.WindowsUtils;
 
-public sealed class HotKey : IDisposable
+internal sealed class HotKey : IDisposable
 {
-    private static Dictionary<int, HotKey>? _dictHotKeyToCalBackProc;
-
-    [DllImport("user32.dll")]
-    private static extern bool RegisterHotKey(IntPtr hWnd, int id, UInt32 fsModifiers, UInt32 vlc);
-
-    [DllImport("user32.dll")]
-    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    private static Dictionary<int, HotKey>? DictHotKeyToCalBackProc;
 
     private const int WmHotKey = 0x0312;
 
     private bool _disposed;
 
-    public Key Key { get; }
-    public KeyModifier KeyModifiers { get; }
-    public Action<HotKey>? Action { get; }
-    public int Id { get; set; }
+    private readonly Key _key;
+    private readonly HOT_KEY_MODIFIERS _keyModifiers;
+    private readonly Action<HotKey>? _action;
+    
+    private int Id { get; set; }
 
-    public HotKey(Key k, KeyModifier keyModifiers, Action<HotKey> action, bool register = true)
+    public HotKey(Key k, HOT_KEY_MODIFIERS keyModifiers, Action<HotKey> action, bool register = true)
     {
-        Key = k;
-        KeyModifiers = keyModifiers;
-        Action = action;
+        _key = k;
+        _keyModifiers = keyModifiers;
+        _action = action;
         if (register)
         {
             Register();
         }
     }
 
-    public bool Register()
+    private bool Register()
     {
-        var virtualKeyCode = KeyInterop.VirtualKeyFromKey(Key);
-        Id = virtualKeyCode + ((int)KeyModifiers * 0x10000);
-        var result = RegisterHotKey(
-            IntPtr.Zero,
+        var virtualKeyCode = KeyInterop.VirtualKeyFromKey(_key);
+        Id = virtualKeyCode + ((int)_keyModifiers * 0x10000);
+        var result = PInvoke.RegisterHotKey(
+            HWND.Null,
             Id,
-            (UInt32)KeyModifiers,
-            (UInt32)virtualKeyCode
+            _keyModifiers,
+            (uint)virtualKeyCode
         );
 
-        if (_dictHotKeyToCalBackProc == null)
+        if (DictHotKeyToCalBackProc == null)
         {
-            _dictHotKeyToCalBackProc = new Dictionary<int, HotKey>();
+            DictHotKeyToCalBackProc = new Dictionary<int, HotKey>();
             ComponentDispatcher.ThreadFilterMessage += ComponentDispatcherThreadFilterMessage;
         }
 
-        _dictHotKeyToCalBackProc.Add(Id, this);
+        DictHotKeyToCalBackProc.Add(Id, this);
 
         Debug.Print(result.ToString() + ", " + Id + ", " + virtualKeyCode);
         return result;
@@ -61,14 +58,14 @@ public sealed class HotKey : IDisposable
     // ******************************************************************
     public void Unregister()
     {
-        if (_dictHotKeyToCalBackProc != null
-            && _dictHotKeyToCalBackProc.TryGetValue(
+        if (DictHotKeyToCalBackProc != null
+            && DictHotKeyToCalBackProc.TryGetValue(
                 Id,
                 out _
             ))
         {
-            UnregisterHotKey(
-                IntPtr.Zero,
+            PInvoke.UnregisterHotKey(
+                HWND.Null,
                 Id
             );
         }
@@ -81,15 +78,15 @@ public sealed class HotKey : IDisposable
         {
             if (msg.message == WmHotKey)
             {
-                if (_dictHotKeyToCalBackProc != null
-                    && _dictHotKeyToCalBackProc.TryGetValue(
+                if (DictHotKeyToCalBackProc != null
+                    && DictHotKeyToCalBackProc.TryGetValue(
                         (int)msg.wParam,
                         out var hotKey
                     ))
                 {
-                    if (hotKey.Action != null)
+                    if (hotKey._action != null)
                     {
-                        hotKey.Action(hotKey);
+                        hotKey._action(hotKey);
                     }
 
                     handled = true;

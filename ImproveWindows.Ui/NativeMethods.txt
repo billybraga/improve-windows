@@ -2,3 +2,5 @@ SetForegroundWindow
 GetForegroundWindow
 SendInput
 SetWindowPos
+RegisterHotKey
+UnregisterHotKey

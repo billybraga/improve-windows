@@ -1,26 +1,27 @@
 ﻿using System.Windows.Input;
+using Windows.Win32.UI.Input.KeyboardAndMouse;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Ui.WindowsUtils;
 
 namespace ImproveWindows.Ui;
 
-public class MicMute : AppService
+public sealed class MicMute : AppService, IDisposable
 {
-    private readonly AudioLevelsService audioLevelsService;
+    private readonly AudioLevelsService _audioLevelsService;
     private readonly HotKey _h;
 
     public MicMute(AudioLevelsService audioLevelsService)
     {
-        this.audioLevelsService = audioLevelsService;
+        _audioLevelsService = audioLevelsService;
         _h = new HotKey(
             Key.M,
-            KeyModifier.Ctrl | KeyModifier.Shift | KeyModifier.Alt,
+            HOT_KEY_MODIFIERS.MOD_CONTROL | HOT_KEY_MODIFIERS.MOD_SHIFT | HOT_KEY_MODIFIERS.MOD_ALT,
             _ =>
             {
                 try
                 {
-                    var isMuted = audioLevelsService.GetTeamsMicMuteState();
+                    var isMuted = audioLevelsService.TeamsMicMuteState;
                     if (isMuted is null)
                     {
                         Console.Beep(800, 1000);
@@ -42,7 +43,7 @@ public class MicMute : AppService
 
     private void SetStatusFromAudio()
     {
-        var isMuted = audioLevelsService.GetTeamsMicMuteState();
+        var isMuted = _audioLevelsService.TeamsMicMuteState;
 
         if (isMuted is null)
         {
@@ -54,7 +55,7 @@ public class MicMute : AppService
         }
     }
 
-    public override async Task RunAsync(CancellationToken cancellationToken)
+    protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -69,5 +70,10 @@ public class MicMute : AppService
         {
             _h.Dispose();
         }
+    }
+
+    public void Dispose()
+    {
+        _h.Dispose();
     }
 }

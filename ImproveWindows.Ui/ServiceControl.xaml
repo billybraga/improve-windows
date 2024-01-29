@@ -9,7 +9,7 @@
     <Grid>
         <Border>
             <DockPanel LastChildFill="True">
-                <Label Name="Name" DockPanel.Dock="Top" FontWeight="Bold"></Label>
+                <Label Name="ServiceName" DockPanel.Dock="Top" FontWeight="Bold"></Label>
                 <Label Name="Status" DockPanel.Dock="Top" FontWeight="Bold"></Label>
                 <ScrollViewer Name="ScrollViewer" Padding="5px">
                     <TextBlock Name="Logs" TextWrapping="Wrap"></TextBlock>

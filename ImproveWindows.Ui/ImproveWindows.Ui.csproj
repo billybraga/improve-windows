@@ -3,8 +3,6 @@
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
         <TargetFramework>net8.0-windows</TargetFramework>
-        <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
         <ApplicationIcon>Resources\icons8-volume-64.ico</ApplicationIcon>
         <RootNamespace>ImproveWindows.Ui</RootNamespace>

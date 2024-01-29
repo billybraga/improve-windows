@@ -7,12 +7,21 @@ namespace ImproveWindows.Ui;
 
 public class WindowService : AppService
 {
+    private const int ScreenHeight = 2160;
+    private const int ScreenWidth = 3840;
+    private const int TaskBarHeight = 60;
+    private const int MaxWindowHeight = ScreenHeight - TaskBarHeight;
+    private const int WindowPadding = 8;
+    private const int HalvedWindowWidth = (ScreenWidth / 2) + WindowPadding * 2;
+    private const int HalvedWindowHeight = (MaxWindowHeight / 2) + WindowPadding * 2;
+
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(5);
 
-    private (Task Task, CancellationTokenSource CancellationTokenSource)? teamsMeetingTask;
+    private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeetingTask;
     private bool _isInMeeting;
+    private bool _meetingWindowShareActive;
 
-    public override async Task RunAsync(CancellationToken cancellationToken)
+    protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -27,7 +36,8 @@ public class WindowService : AppService
                         return;
                     }
 
-                    HandleWindowAsync(automationElement, cancellationToken)
+                    using var handleWindowTask = HandleWindowAsync(automationElement, cancellationToken);
+                    handleWindowTask
                         .GetAwaiter()
                         .GetResult();
                 }
@@ -77,76 +87,14 @@ public class WindowService : AppService
         {
             var current = await WaitForNameAsync(automationElement, cancellationToken);
 
-            if (!current.Name.Contains("Microsoft Teams"))
+            if (current.Name.Contains("Microsoft Teams"))
             {
-                return;
+                await HandleTeamsWindow(automationElement, current);
             }
 
-            var size = current.BoundingRectangle;
-
-            if (size.Height > 1800)
+            if (current.Name.Contains("Improve Windows"))
             {
-                LogInfo($"Skipped Teams main window (height {size.Height})");
-                return;
-            }
-
-            if (size is { Height: < 500, Width: < 500 })
-            {
-                LogInfo("Teams thumbnail opened");
-
-                PInvoke.SetWindowPos(
-                    new HWND(new IntPtr(current.NativeWindowHandle)),
-                    default,
-                    800,
-                    100,
-                    (int)size.Width,
-                    (int)size.Height,
-                    default
-                );
-
-                LogInfo("Teams thumbnail moved");
-            }
-            else if (_isInMeeting)
-            {
-                LogInfo("Teams screen share window opened");
-                
-                PInvoke.SetWindowPos(
-                    new HWND(new IntPtr(current.NativeWindowHandle)),
-                    default,
-                    1912,
-                    0,
-                    1936,
-                    1058,
-                    default
-                );
-                
-                LogInfo("Teams screen share window moved");
-            }
-            else
-            {
-                _isInMeeting = true;
-                
-                LogInfo("Teams meeting opened");
-
-                if (teamsMeetingTask.HasValue)
-                {
-                    await teamsMeetingTask.Value.CancellationTokenSource.CancelAsync();
-                }
-
-                var cancellationTokenSource = new CancellationTokenSource();
-                teamsMeetingTask = (ManageTeamsMeetingWindowAsync(automationElement, cancellationTokenSource.Token), cancellationTokenSource);
-
-                PInvoke.SetWindowPos(
-                    new HWND(new IntPtr(current.NativeWindowHandle)),
-                    default,
-                    -8,
-                    0,
-                    1936,
-                    1058,
-                    default
-                );
-
-                LogInfo("Teams meeting moved");
+                HandleImproveWindowsWindow(current);
             }
         }
         catch (ElementNotAvailableException)
@@ -158,11 +106,134 @@ public class WindowService : AppService
         }
     }
 
+    private static void HandleImproveWindowsWindow(AutomationElement.AutomationElementInformation current)
+    {
+        PInvoke.SetWindowPos(
+            new HWND(new IntPtr(current.NativeWindowHandle)),
+            default,
+            -WindowPadding,
+            (MaxWindowHeight / 2) - WindowPadding,
+            HalvedWindowWidth,
+            HalvedWindowHeight,
+            default
+        );
+    }
+
+    private async Task HandleTeamsWindow(AutomationElement automationElement, AutomationElement.AutomationElementInformation current)
+    {
+        var size = current.BoundingRectangle;
+
+        if (IsAbout(size.Height, MaxWindowHeight))
+        {
+            LogInfo($"Skipped Teams main window (height {size.Height})");
+            return;
+        }
+
+        if (size is { Height: < 500, Width: < 500 })
+        {
+            LogInfo("Teams thumbnail opened");
+
+            PInvoke.SetWindowPos(
+                new HWND(new IntPtr(current.NativeWindowHandle)),
+                default,
+                800,
+                100,
+                (int) size.Width,
+                (int) size.Height,
+                default
+            );
+
+            LogInfo("Teams thumbnail moved");
+        }
+        else if (_isInMeeting)
+        {
+            if (_meetingWindowShareActive)
+            {
+                return;
+            }
+
+            _meetingWindowShareActive = true;
+
+            LogInfo("Teams screen share window opened");
+
+            PInvoke.SetWindowPos(
+                new HWND(new IntPtr(current.NativeWindowHandle)),
+                default,
+                (ScreenWidth / 2) - WindowPadding,
+                0,
+                HalvedWindowWidth,
+                HalvedWindowHeight,
+                default
+            );
+
+            Once(
+                automationElement,
+                WindowPattern.WindowClosedEvent,
+                () =>
+                {
+                    _meetingWindowShareActive = false;
+                }
+            );
+
+            LogInfo("Teams screen share window moved");
+        }
+        else
+        {
+            LogInfo("Teams meeting opened");
+
+            if (_teamsMeetingTask.HasValue)
+            {
+                var teamsMeetingTask = _teamsMeetingTask.Value;
+                try
+                {
+                    if (!teamsMeetingTask.CancellationTokenSource.IsCancellationRequested)
+                    {
+                        await teamsMeetingTask.CancellationTokenSource.CancelAsync();
+                    }
+                }
+                finally
+                {
+                    teamsMeetingTask.CancellationTokenSource.Dispose();
+                    teamsMeetingTask.Task.Dispose();
+                }
+            }
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            _teamsMeetingTask = (ManageTeamsMeetingWindowAsync(automationElement, cancellationTokenSource.Token), cancellationTokenSource);
+        }
+    }
+
     private async Task ManageTeamsMeetingWindowAsync(AutomationElement automationElement, CancellationToken cancellationToken)
     {
+        _isInMeeting = true;
+
+        using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
         try
         {
-            var items = new HashSet<string>();
+            Once(
+                automationElement,
+                WindowPattern.WindowClosedEvent,
+                () =>
+                {
+                    LogInfo("Handling meeting close event");
+                    // ReSharper disable once AccessToDisposedClosure
+                    cancellationTokenSource.Cancel();
+                }
+            );
+
+            PInvoke.SetWindowPos(
+                new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+                default,
+                -WindowPadding,
+                0,
+                HalvedWindowWidth,
+                HalvedWindowHeight,
+                default
+            );
+
+            LogInfo("Teams meeting started");
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!IsAlive(automationElement))
@@ -170,51 +241,17 @@ public class WindowService : AppService
                     return;
                 }
 
-                var menuItems = automationElement.FindAll(
-                    TreeScope.Descendants,
-                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)
-                    // new OrCondition(
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuBar),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ToolBar),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ToolTip),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Custom),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Hyperlink),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Image),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Thumb),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.HeaderItem),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TabItem),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.TreeItem),
-                    //     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit)
-                    // )
-                );
-
-                foreach (AutomationElement menuItem in menuItems)
+                if (!_meetingWindowShareActive)
                 {
-                    var current = menuItem.Current;
-                    if (!items.Add(current.Name))
-                    {
-                        continue;
-                    }
-
-                    if (!current.Name.Contains("Open content in new window", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // LogInfo($"Skipping {current.Name} ({current.ItemType}, {current.ControlType.ProgrammaticName}) in meeting");
-                        continue;
-                    }
-
-                    Click(menuItem);
+                    ClickOnOpenContentInNewWindow(automationElement);
                 }
 
                 await Task.Delay(1000, cancellationToken);
             }
         }
-        catch (ElementNotAvailableException)
+        catch (OperationCanceledException oce)
         {
-        }
-        catch (OperationCanceledException)
-        {
+            LogInfo($"Meeting task got {oce.GetType().Name}");
         }
         catch (Exception e)
         {
@@ -222,12 +259,113 @@ public class WindowService : AppService
         }
         finally
         {
+            LogInfo("Meeting task finishing");
             _isInMeeting = false;
-            LogInfo("Meeting task done");
+            _meetingWindowShareActive = false;
+            await OnMeetingStoppedAsync(cancellationToken);
+            LogInfo("Meeting task finished");
         }
     }
 
-    private bool IsAlive(AutomationElement automationElement)
+    private void ClickOnOpenContentInNewWindow(AutomationElement automationElement)
+    {
+        try
+        {
+            var openContentElement = automationElement
+                .FindAll(
+                    TreeScope.Descendants,
+                    new AndCondition(
+                        new PropertyCondition(AutomationElement.NameProperty, "Open content in new window"),
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)
+                    )
+                )
+                .OfType<AutomationElement>()
+                .FirstOrDefault();
+
+            if (openContentElement is null)
+            {
+                return;
+            }
+
+            Click(openContentElement);
+        }
+        catch (ElementNotAvailableException)
+        {
+        }
+    }
+
+    private async Task OnMeetingStoppedAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var automationElements = AutomationElement
+                .RootElement
+                .FindAll(
+                    TreeScope.Children,
+                    new OrCondition(
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Pane)
+                    )
+                )
+                .OfType<AutomationElement>()
+                .ToArray();
+
+            var tasks = new List<Task>();
+            var skippedWindows = new List<string>();
+
+            foreach (var automationElement in automationElements)
+            {
+                var name = TryGetName(automationElement);
+                if (name is null)
+                {
+                    continue;
+                }
+
+                if (IsAboutSize(automationElement, ScreenWidth, MaxWindowHeight / 2.0))
+                {
+                    tasks.Add(
+                        Task.Run(
+                            () =>
+                            {
+                                LogInfo($"Maximizing {name}");
+                                var windowPattern = (WindowPattern) automationElement.GetCurrentPattern(WindowPattern.Pattern);
+                                windowPattern.SetWindowVisualState(WindowVisualState.Maximized);
+                                LogInfo($"Maximized {name}");
+                            },
+                            cancellationToken
+                        )
+                    );
+                }
+                else
+                {
+                    skippedWindows.Add(name);
+                }
+            }
+
+            var skippedWindowNames = string.Join("\n", skippedWindows);
+            LogInfo($"Skipped window resize:\n{skippedWindowNames}");
+
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception e)
+        {
+            LogError(e);
+        }
+    }
+
+    private static string? TryGetName(AutomationElement automationElement)
+    {
+        try
+        {
+            return automationElement.Current.Name;
+        }
+        catch (ElementNotAvailableException)
+        {
+            return null;
+        }
+    }
+
+    private static bool IsAlive(AutomationElement automationElement)
     {
         try
         {
@@ -255,7 +393,8 @@ public class WindowService : AppService
         invokePattern.Invoke();
     }
 
-    private async Task<AutomationElement.AutomationElementInformation> WaitForNameAsync(AutomationElement automationElement, CancellationToken cancellationToken)
+    private static async Task<AutomationElement.AutomationElementInformation> WaitForNameAsync(AutomationElement automationElement,
+        CancellationToken cancellationToken)
     {
         var current = automationElement.Current;
         var start = DateTime.Now;
@@ -267,5 +406,49 @@ public class WindowService : AppService
         }
 
         return current;
+    }
+
+    private static bool IsAbout(double value, double reference)
+    {
+        return (Math.Abs(value - reference) / reference) < 0.05;
+    }
+
+    private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight)
+    {
+        try
+        {
+            return IsAbout(element.Current.BoundingRectangle.Height, referenceHeight)
+                && IsAbout(element.Current.BoundingRectangle.Width, referenceWidth);
+        }
+        catch (ElementNotAvailableException)
+        {
+            return false;
+        }
+    }
+
+    private void Once(AutomationElement automationElement, AutomationEvent automationEvent, Action onClose)
+    {
+        AutomationEventHandler automationEventHandler = default!;
+        automationEventHandler = (_, _) =>
+        {
+            try
+            {
+                // ReSharper disable once AccessToModifiedClosure
+                Automation.RemoveAutomationEventHandler(automationEvent, automationElement, automationEventHandler);
+            }
+            catch (Exception e)
+            {
+                LogError(e);
+            }
+
+            onClose();
+        };
+
+        Automation.AddAutomationEventHandler(
+            automationEvent,
+            automationElement,
+            TreeScope.Element,
+            automationEventHandler
+        );
     }
 }

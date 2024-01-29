@@ -17,7 +17,7 @@ public class AudioLevelsService : AppService
         public required int Volume { get; init; }
     }
 
-    private record LevelState
+    private sealed record LevelState
     {
         public LevelStateSession? CurrentSession { get; set; }
 
@@ -62,6 +62,8 @@ public class AudioLevelsService : AppService
     private IAudioSession? _teamsCaptureSession;
     private bool _initialized;
 
+    public bool? TeamsMicMuteState => _teamsCaptureSession?.IsMuted;
+
     private readonly IReadOnlyCollection<LevelState> _levels = new List<LevelState>
     {
         TeamsNotificationsLevel,
@@ -71,54 +73,87 @@ public class AudioLevelsService : AppService
         SystemLevel,
     };
 
-    public override async Task RunAsync(CancellationToken cancellationToken)
+    protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         LogInfo("Starting");
-        var coreAudioController = new CoreAudioController();
-        var defaultPlaybackDevice = coreAudioController.DefaultPlaybackDevice;
-        var defaultPlaybackSessionController = defaultPlaybackDevice.SessionController;
+        using var coreAudioController = new CoreAudioController();
+        
+        var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
 
-        defaultPlaybackSessionController.SessionCreated.Subscribe(ConfigureSession);
-        defaultPlaybackSessionController.SessionDisconnected.Subscribe(HandleSessionDisconnected);
-
-        LogInfo("Subscribed");
-
-        foreach (var session in defaultPlaybackSessionController)
+        try
         {
-            ConfigureSession(session);
-        }
-
-        _initialized = true;
-
-        UpdateStatus();
-
-        coreAudioController.AudioDeviceChanged.Subscribe(
-            args =>
-            {
-                switch (args.ChangedType)
+            coreAudioController.AudioDeviceChanged.Subscribe(
+                args =>
                 {
-                    case DeviceChangedType.DeviceAdded:
-                        AddAudioCaptureDevice((CoreAudioDevice)args.Device);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
+                    switch (args.ChangedType)
+                    {
+                        case DeviceChangedType.DeviceAdded:
+                            AddAudioCaptureDevice((CoreAudioDevice)args.Device);
+                            break;
+                        case DeviceChangedType.DefaultChanged:
+                            // ReSharper disable once AccessToDisposedClosure
+                            defaultPlaybackSetup.Dispose();
+                            defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
+                    }
                 }
-            }
-        );
+            );
 
-        foreach (var captureDevice in await coreAudioController.GetCaptureDevicesAsync())
+            foreach (var captureDevice in await coreAudioController.GetCaptureDevicesAsync())
+            {
+                AddAudioCaptureDevice(captureDevice);
+            }
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (_levels.Any(x => !x.Valid))
+                {
+                    Console.Beep();
+                }
+
+                await Task.Delay(10000, cancellationToken);
+            }
+        }
+        finally
         {
-            AddAudioCaptureDevice(captureDevice);
+            defaultPlaybackSetup.Dispose();
         }
 
-        while (!cancellationToken.IsCancellationRequested)
+        IDisposable ConfigureDefaultAudioPlaybackDevice()
         {
-            if (_levels.Any(x => !x.Valid))
+            // ReSharper disable once AccessToDisposedClosure
+            var coreAudioDevice = coreAudioController.DefaultPlaybackDevice;
+
+            if (coreAudioDevice is null)
             {
-                Console.Beep();
+                return DelegateDisposable.Create(() => { });
+            }
+            
+            var defaultPlaybackSessionController = coreAudioDevice.SessionController;
+
+            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(ConfigureSession);
+            var sessionDisconnectSbn = defaultPlaybackSessionController.SessionDisconnected.Subscribe(HandleSessionDisconnected);
+
+            LogInfo("Subscribed");
+
+            foreach (var session in defaultPlaybackSessionController)
+            {
+                ConfigureSession(session);
             }
 
-            await Task.Delay(10000, cancellationToken);
+            _initialized = true;
+
+            UpdateStatus();
+
+            return DelegateDisposable.Create(
+                () =>
+                {
+                    sessionCreatedSbn.Dispose();
+                    sessionDisconnectSbn.Dispose();
+                }
+            );
         }
     }
 
@@ -177,11 +212,6 @@ public class AudioLevelsService : AppService
                 : levels,
             error
         );
-    }
-
-    public bool? GetTeamsMicMuteState()
-    {
-        return _teamsCaptureSession?.IsMuted;
     }
 
     private void ProcessCaptureSession(IAudioSession captureAudioSession)
@@ -296,9 +326,9 @@ public class AudioLevelsService : AppService
 
         if (session.DisplayName == "Microsoft Edge WebView2")
         {
-            var process = Process.GetProcessById(session.ProcessId);
+            using var process = Process.GetProcessById(session.ProcessId);
             var parentProcessId = GetParentProcessId(process);
-            var parentProcess = Process.GetProcessById(parentProcessId);
+            using var parentProcess = Process.GetProcessById(parentProcessId);
             var parentProcessCommandLine = parentProcess.GetCommandLine();
             if (parentProcessCommandLine.Contains("--webview-exe-name=ms-teams.exe"))
             {
