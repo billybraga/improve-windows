@@ -1,10 +1,18 @@
-﻿using System.Windows.Media;
+﻿using System.Windows;
+using System.Windows.Media;
 
 namespace ImproveWindows.Ui;
 
 public partial class ServiceControl
 {
-    private const int MaxCharCount = 30 * 40;
+#if DEBUG
+    private const int LineCount = 300;
+#else
+    private const int LineCount = 30;
+#endif
+    private const int MaxCharCount = LineCount * 40;
+            
+    public event EventHandler<RoutedEventArgs>? OnRestartClick;
 
     public ServiceControl()
     {
@@ -36,5 +44,10 @@ public partial class ServiceControl
                 Status.Foreground = isError ? Brushes.Red : Brushes.Green;
             }
         );
+    }
+
+    private void RestartBtnClick(object sender, RoutedEventArgs e)
+    {
+        OnRestartClick?.Invoke(sender, e);
     }
 }

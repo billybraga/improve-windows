@@ -2,6 +2,10 @@
 
 public class StatusChangeEventArgs : EventArgs, IEquatable<StatusChangeEventArgs>
 {
+    public required bool IsError { get; init; }
+    public required string Status { get; init; }
+    public required bool WasAlreadyError { get; init; }
+
     public bool Equals(StatusChangeEventArgs? other)
     {
         return IsError == other?.IsError
@@ -27,7 +31,4 @@ public class StatusChangeEventArgs : EventArgs, IEquatable<StatusChangeEventArgs
     {
         return !left.Equals(right);
     }
-
-    public required bool IsError { get; init; }
-    public required string Status { get; init; }
 }

@@ -1,7 +1,10 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Threading;
+using Windows.Win32;
+using Windows.Win32.Foundation;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
 
@@ -14,12 +17,34 @@ public sealed partial class MainWindow : IDisposable
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly List<ServiceInfos> _taskInfos = new();
+    private readonly WindowInteropHelper _windowInteropHelper;
 
-    private record ServiceInfos(string Name, Task Task, AppService Service, ServiceControl ServiceControl);
-    
+    private record ServiceInfos
+    {
+        public string Name { get; }
+        public Task Task { get; private set; }
+        public AppService Service { get; }
+        public ServiceControl ServiceControl { get; }
+        
+        public ServiceInfos(string name, Task task, AppService service, ServiceControl serviceControl)
+        {
+            Name = name;
+            Task = task;
+            Service = service;
+            ServiceControl = serviceControl;
+        }
+
+        public void Restart()
+        {
+            Task = Service.RestartAsync();
+        }
+    }
+
     public MainWindow()
     {
         InitializeComponent();
+        
+        _windowInteropHelper = new WindowInteropHelper(this);
         
 #pragma warning disable CA2000
         var audioLevels = new AudioLevelsService();
@@ -39,9 +64,24 @@ public sealed partial class MainWindow : IDisposable
                     Content = name,
                 },
             };
-            
+
             service.OnLog += (_, args) => serviceControl.AddLog(args.Message);
-            service.OnStatusChange += (_, args) => serviceControl.SetStatus(args.Status, args.IsError);
+            service.OnStatusChange += (_, args) =>
+            {
+                serviceControl.SetStatus(args.Status, args.IsError);
+                if (args is { IsError: true, WasAlreadyError: false })
+                {
+                    PInvoke.FlashWindow(new HWND(_windowInteropHelper.Handle), true);
+                }
+            };
+
+            var serviceInfos = new ServiceInfos(name, service.RunAsync(_cancellationTokenSource.Token), service, serviceControl);
+            _taskInfos.Add(serviceInfos);
+
+            serviceControl.OnRestartClick += (_, _) =>
+            {
+                serviceInfos.Restart();
+            };
             
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition
             {
@@ -51,8 +91,6 @@ public sealed partial class MainWindow : IDisposable
             MainGrid.Children.Add(serviceControl);
             
             serviceControl.SetValue(Grid.ColumnProperty, MainGrid.Children.Count - 1);
-            
-            _taskInfos.Add(new ServiceInfos(name, service.RunAsync(_cancellationTokenSource.Token), service, serviceControl));
         }
     }
 

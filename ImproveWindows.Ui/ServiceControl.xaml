@@ -9,8 +9,11 @@
     <Grid>
         <Border>
             <DockPanel LastChildFill="True">
-                <Label Name="ServiceName" DockPanel.Dock="Top" FontWeight="Bold"></Label>
-                <Label Name="Status" DockPanel.Dock="Top" FontWeight="Bold"></Label>
+                <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Top"></Label>
+                <DockPanel DockPanel.Dock="Top">
+                    <Label Name="ServiceName" FontWeight="Bold"></Label>
+                    <Label MouseUp="RestartBtnClick" FontWeight="Bold">⟳</Label>
+                </DockPanel>
                 <ScrollViewer Name="ScrollViewer" Padding="5px">
                     <TextBlock Name="Logs" TextWrapping="Wrap"></TextBlock>
                 </ScrollViewer>

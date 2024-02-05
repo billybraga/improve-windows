@@ -1,22 +1,53 @@
 ﻿namespace ImproveWindows.Core.Services;
 
-public abstract class AppService
+public abstract class AppService : IDisposable
 {
     private string? _status;
+    private CancellationToken _cancellationToken;
+    private CancellationTokenSource? _cancellationTokenSource;
+    private Task? _task;
+
+    public bool IsError { get; private set; }
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await StartAsync(cancellationToken);
+            _cancellationToken = cancellationToken;
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _task = StartAsync(_cancellationTokenSource.Token);
+            await _task;
+            SetStatus("Stopped");
         }
+        catch (OperationCanceledException) { }
         catch (Exception e)
         {
             SetStatus("Error", true);
             LogError(e);
         }
     }
-    
+
+    public async Task RestartAsync()
+    {
+        if (_cancellationTokenSource != null)
+        {
+            await _cancellationTokenSource.CancelAsync();
+        }
+        
+        if (_task != null)
+        {
+            try
+            {
+                await _task;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        await RunAsync(_cancellationToken);
+    }
+
     protected abstract Task StartAsync(CancellationToken cancellationToken);
 
     public event EventHandler<TextMessageEventArgs>? OnLog;
@@ -34,8 +65,8 @@ public abstract class AppService
 
     protected void SetStatus(string? status = null, bool isError = false)
     {
-        OnStatusChange?.Invoke(this, new StatusChangeEventArgs { Status = status ?? "Ok", IsError = isError });
-        
+        TriggerOnStatusChange(status, isError);
+
         if (status != null && status != _status)
         {
             LogInfo(status);
@@ -46,13 +77,34 @@ public abstract class AppService
 
     protected void SetStatusKey(string statusKey, string? statusMessage = null, bool isError = false)
     {
-        OnStatusChange?.Invoke(this, new StatusChangeEventArgs { Status = statusMessage ?? "Ok", IsError = isError });
-        
+        TriggerOnStatusChange(statusMessage ?? "Ok", isError);
+
         if (statusMessage != null && statusKey != _status)
         {
             LogInfo(statusMessage);
         }
 
         _status = statusKey;
+    }
+
+    private void TriggerOnStatusChange(string? status, bool isError)
+    {
+        var wasAlreadyError = IsError;
+        IsError = isError;
+        OnStatusChange?.Invoke(this, new StatusChangeEventArgs { Status = status ?? "Ok", IsError = isError, WasAlreadyError = wasAlreadyError });
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _cancellationTokenSource?.Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }

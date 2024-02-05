@@ -1,6 +1,7 @@
 ﻿using System.Windows.Automation;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
 using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Ui;
@@ -12,14 +13,22 @@ public class WindowService : AppService
     private const int TaskBarHeight = 60;
     private const int MaxWindowHeight = ScreenHeight - TaskBarHeight;
     private const int WindowPadding = 8;
-    private const int HalvedWindowWidth = (ScreenWidth / 2) + WindowPadding * 2;
-    private const int HalvedWindowHeight = (MaxWindowHeight / 2) + WindowPadding * 2;
+    private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
+    private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
+    private const int HalvedWindowHeight = (MaxWindowHeight / 2) + (WindowPadding * 1);
 
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(5);
 
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeetingTask;
-    private bool _isInMeeting;
+    private MeetingState _meetingState;
     private bool _meetingWindowShareActive;
+
+    private enum MeetingState
+    {
+        None,
+        Window,
+        Thumbnail,
+    }
 
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -74,6 +83,11 @@ public class WindowService : AppService
             {
                 await Task.Delay(1000, cancellationToken);
             }
+
+            if (_layoutDuringMeetingTask != null)
+            {
+                await _layoutDuringMeetingTask;
+            }
         }
         finally
         {
@@ -89,12 +103,12 @@ public class WindowService : AppService
 
             if (current.Name.Contains("Microsoft Teams"))
             {
-                await HandleTeamsWindow(automationElement, current);
+                await HandleTeamsWindow(automationElement, current, cancellationToken);
             }
 
             if (current.Name.Contains("Improve Windows"))
             {
-                HandleImproveWindowsWindow(current);
+                PutWindowInQuadrant(automationElement, true, false);
             }
         }
         catch (ElementNotAvailableException)
@@ -106,20 +120,8 @@ public class WindowService : AppService
         }
     }
 
-    private static void HandleImproveWindowsWindow(AutomationElement.AutomationElementInformation current)
-    {
-        PInvoke.SetWindowPos(
-            new HWND(new IntPtr(current.NativeWindowHandle)),
-            default,
-            -WindowPadding,
-            (MaxWindowHeight / 2) - WindowPadding,
-            HalvedWindowWidth,
-            HalvedWindowHeight,
-            default
-        );
-    }
-
-    private async Task HandleTeamsWindow(AutomationElement automationElement, AutomationElement.AutomationElementInformation current)
+    private async Task HandleTeamsWindow(AutomationElement automationElement, AutomationElement.AutomationElementInformation current,
+        CancellationToken cancellationToken)
     {
         var size = current.BoundingRectangle;
 
@@ -143,9 +145,25 @@ public class WindowService : AppService
                 default
             );
 
+            Once(
+                automationElement,
+                WindowPattern.WindowClosedEvent,
+                () =>
+                {
+                    if (_meetingState == MeetingState.Thumbnail)
+                    {
+                        _meetingState = MeetingState.Window;
+                        QueueLayoutDuringMeeting(cancellationToken);
+                    }
+                }
+            );
+
+            _meetingState = MeetingState.Thumbnail;
+            QueueLayoutDuringMeeting(cancellationToken);
+
             LogInfo("Teams thumbnail moved");
         }
-        else if (_isInMeeting)
+        else if (_meetingState > MeetingState.None)
         {
             if (_meetingWindowShareActive)
             {
@@ -156,15 +174,7 @@ public class WindowService : AppService
 
             LogInfo("Teams screen share window opened");
 
-            PInvoke.SetWindowPos(
-                new HWND(new IntPtr(current.NativeWindowHandle)),
-                default,
-                (ScreenWidth / 2) - WindowPadding,
-                0,
-                HalvedWindowWidth,
-                HalvedWindowHeight,
-                default
-            );
+            PutWindowInQuadrant(automationElement, false, true);
 
             Once(
                 automationElement,
@@ -203,9 +213,70 @@ public class WindowService : AppService
         }
     }
 
+    private static void PutWindowInQuadrant(AutomationElement automationElement, bool left, bool top)
+    {
+        if (automationElement.TryGetCurrentPattern(WindowPattern.Pattern, out var pattern))
+        {
+            var windowPattern = (WindowPattern) pattern;
+            windowPattern.SetWindowVisualState(WindowVisualState.Normal);
+        }
+        var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
+        PInvoke.SetWindowPos(
+            windowHandle,
+            default,
+            GetPosX(left),
+            GetPosY(top),
+            HalvedWindowWidth,
+            HalvedWindowHeight,
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
+        );
+    }
+
+    private static int GetPosY(bool top)
+    {
+        return top ? 0 : MaxWindowHeight / 2;
+    }
+
+    private static int GetPosX(bool left)
+    {
+        return (left ? 0 : (ScreenWidth / 2)) - WindowPadding;
+    }
+
+    private void PutWindowInHalf(AutomationElement automationElement, bool top)
+    {
+        var location = top ? "top" : "bottom";
+        LogInfo($"Putting {automationElement.Current.Name} to {location}");
+        if (automationElement.TryGetCurrentPattern(WindowPattern.Pattern, out var pattern))
+        {
+            var windowPattern = (WindowPattern) pattern;
+            windowPattern.SetWindowVisualState(WindowVisualState.Normal);
+        }
+        var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
+        PInvoke.SetWindowPos(
+            windowHandle,
+            default,
+            GetPosX(true),
+            GetPosY(top),
+            FullWindowWidth,
+            HalvedWindowHeight,
+            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
+        );
+    }
+
+    private void MaximizeWindow(AutomationElement automationElement)
+    {
+        LogInfo($"Maximizing {automationElement.Current.Name}");
+        if (automationElement.TryGetCurrentPattern(WindowPattern.Pattern, out var pattern))
+        {
+            var windowPattern = (WindowPattern) pattern;
+            windowPattern.SetWindowVisualState(WindowVisualState.Maximized);
+        }
+        LogInfo($"Maximized {automationElement.Current.Name}");
+    }
+
     private async Task ManageTeamsMeetingWindowAsync(AutomationElement automationElement, CancellationToken cancellationToken)
     {
-        _isInMeeting = true;
+        _meetingState = MeetingState.Window;
 
         using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -222,15 +293,9 @@ public class WindowService : AppService
                 }
             );
 
-            PInvoke.SetWindowPos(
-                new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
-                default,
-                -WindowPadding,
-                0,
-                HalvedWindowWidth,
-                HalvedWindowHeight,
-                default
-            );
+            PutWindowInQuadrant(automationElement, true, true);
+
+            QueueLayoutDuringMeeting(cancellationToken);
 
             LogInfo("Teams meeting started");
 
@@ -260,7 +325,7 @@ public class WindowService : AppService
         finally
         {
             LogInfo("Meeting task finishing");
-            _isInMeeting = false;
+            _meetingState = MeetingState.None;
             _meetingWindowShareActive = false;
             await OnMeetingStoppedAsync(cancellationToken);
             LogInfo("Meeting task finished");
@@ -311,7 +376,6 @@ public class WindowService : AppService
                 .ToArray();
 
             var tasks = new List<Task>();
-            var skippedWindows = new List<string>();
 
             foreach (var automationElement in automationElements)
             {
@@ -321,35 +385,91 @@ public class WindowService : AppService
                     continue;
                 }
 
-                if (IsAboutSize(automationElement, ScreenWidth, MaxWindowHeight / 2.0))
+                if (IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight))
                 {
                     tasks.Add(
                         Task.Run(
-                            () =>
-                            {
-                                LogInfo($"Maximizing {name}");
-                                var windowPattern = (WindowPattern) automationElement.GetCurrentPattern(WindowPattern.Pattern);
-                                windowPattern.SetWindowVisualState(WindowVisualState.Maximized);
-                                LogInfo($"Maximized {name}");
-                            },
+                            () => MaximizeWindow(automationElement),
                             cancellationToken
                         )
                     );
                 }
-                else
-                {
-                    skippedWindows.Add(name);
-                }
             }
-
-            var skippedWindowNames = string.Join("\n", skippedWindows);
-            LogInfo($"Skipped window resize:\n{skippedWindowNames}");
 
             await Task.WhenAll(tasks);
         }
         catch (Exception e)
         {
             LogError(e);
+        }
+    }
+
+    private CancellationTokenSource? _layoutDuringMeetingCts;
+    private Task? _layoutDuringMeetingTask;
+
+    private void QueueLayoutDuringMeeting(CancellationToken serviceCancellationToken)
+    {
+        _layoutDuringMeetingTask = DoWork();
+        LogInfo("Queued meeting layout");
+        return;
+
+        async Task DoWork()
+        {
+            using var newCts = CancellationTokenSource.CreateLinkedTokenSource(serviceCancellationToken);
+            var oldCts = Interlocked.CompareExchange(ref _layoutDuringMeetingCts, newCts, null);
+
+            if (oldCts is not null && !oldCts.IsCancellationRequested)
+            {
+                LogInfo("Cancelling old layout");
+                try
+                {
+                    await oldCts.CancelAsync();
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            }
+
+            var cancellationToken = newCts.Token;
+
+            try
+            {
+                var tasks = AutomationElement
+                    .RootElement
+                    .FindAll(
+                        TreeScope.Children,
+                        new OrCondition(
+                            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
+                            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Pane)
+                        )
+                    )
+                    .OfType<AutomationElement>()
+                    .Select(
+                        window => Task.Run(
+                            () =>
+                            {
+                                if (_meetingState == MeetingState.Window && IsAboutSize(window, FullWindowWidth, MaxWindowHeight))
+                                {
+                                    PutWindowInHalf(window, false);
+                                }
+
+                                if (_meetingState == MeetingState.Thumbnail && IsAboutSize(window, FullWindowWidth, HalvedWindowHeight))
+                                {
+                                    MaximizeWindow(window);
+                                }
+                            },
+                            cancellationToken
+                        )
+                    )
+                    .ToArray();
+
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                LogError(e);
+            }
         }
     }
 

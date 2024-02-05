@@ -4,3 +4,5 @@ SendInput
 SetWindowPos
 RegisterHotKey
 UnregisterHotKey
+FlashWindow
+ShowWindow

@@ -8,9 +8,9 @@ using ImproveWindows.Core.Wifi.Wlan;
 
 namespace ImproveWindows.Core;
 
-public sealed class NetworkService : AppService, IDisposable
+public sealed class NetworkService : AppService
 {
-    private const int HighestGoodPing = 50;
+    private const int HighestGoodPing = 75;
     private readonly Ping _googlePinger = new();
     private readonly Ping _cfPinger = new();
     private readonly MovingAverage16 _movingAverage = new();
@@ -202,9 +202,13 @@ public sealed class NetworkService : AppService, IDisposable
         }
     }
 
-    public void Dispose()
+    protected override void Dispose(bool disposing)
     {
-        _googlePinger.Dispose();
-        _cfPinger.Dispose();
+        if (disposing)
+        {
+            _googlePinger.Dispose();
+            _cfPinger.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }
