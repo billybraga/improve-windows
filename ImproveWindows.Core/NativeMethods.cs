@@ -59,7 +59,7 @@ internal static partial class NativeMethods
         private readonly UnicodeString ImagePathName;
         public readonly UnicodeString CommandLine;
     }
-
+    
     [LibraryImport("ntdll.dll")]
     public static partial uint NtQueryInformationProcess(
         IntPtr processHandle,

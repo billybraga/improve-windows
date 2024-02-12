@@ -21,10 +21,9 @@ public sealed class WlanHostedNetwork
 
     // METHODS =================================================================
 
-    private WlanHostedNetworkReason InitSettings()
+    private void InitSettings()
     {
-        Util.ThrowIfError(NativeMethods.WlanHostedNetworkInitSettings(_client.clientHandle, out var failReason, IntPtr.Zero));
-        return failReason;
+        WifiUtil.ThrowIfError(NativeMethods.WlanHostedNetworkInitSettings(_client.clientHandle, out _, IntPtr.Zero));
     }
 
     // INTERNALS ===============================================================

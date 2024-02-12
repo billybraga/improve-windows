@@ -6,12 +6,12 @@ namespace ImproveWindows.Ui;
 public partial class ServiceControl
 {
 #if DEBUG
-    private const int LineCount = 300;
+    private const int LineCount = 3;
 #else
     private const int LineCount = 30;
 #endif
     private const int MaxCharCount = LineCount * 40;
-            
+
     public event EventHandler<RoutedEventArgs>? OnRestartClick;
 
     public ServiceControl()
@@ -19,20 +19,27 @@ public partial class ServiceControl
         InitializeComponent();
     }
 
-    public void AddLog(string message)
+    public async Task AddLogAsync(string message)
     {
         var date = DateTime.Now;
         var completeMessage = $"[{date:HH:mm:ss}] {message}\n";
-        Dispatcher.InvokeAsync(
+        await Dispatcher.InvokeAsync(
             () => { Logs.Text = completeMessage + GetLogsSubstring(); }
         );
     }
 
     private string GetLogsSubstring()
     {
-        return Logs.Text.Length > MaxCharCount
-            ? Logs.Text.Substring(0, Logs.Text.IndexOf('\n', MaxCharCount))
-            : Logs.Text;
+        if (Logs.Text.Length > MaxCharCount)
+        {
+            var indexOfNewLine = Logs.Text.IndexOf('\n', MaxCharCount);
+            if (indexOfNewLine > 0)
+            {
+                return Logs.Text.Substring(0, indexOfNewLine);
+            }
+        }
+
+        return Logs.Text;
     }
 
     public void SetStatus(string status, bool isError)

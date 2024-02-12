@@ -72,7 +72,7 @@ public sealed class WlanClient : IDisposable
 
     private void ReloadInterfaces()
     {
-        Util.ThrowIfError(
+        WifiUtil.ThrowIfError(
             NativeMethods.WlanEnumInterfaces(clientHandle, IntPtr.Zero, out var listPtr)
         );
         try
@@ -125,8 +125,8 @@ public sealed class WlanClient : IDisposable
 
     private WlanClient()
     {
-        var clientVersionDword = Util.VersionToDword(ClientVersion);
-        Util.ThrowIfError(NativeMethods.WlanOpenHandle(clientVersionDword, IntPtr.Zero, out _, out clientHandle));
+        var clientVersionDword = WifiUtil.VersionToDword(ClientVersion);
+        WifiUtil.ThrowIfError(NativeMethods.WlanOpenHandle(clientVersionDword, IntPtr.Zero, out _, out clientHandle));
     }
 
     ~WlanClient()
@@ -161,7 +161,7 @@ public sealed class WlanClient : IDisposable
 
         if (client.HostedNetwork != null)
         {
-            Util.ThrowIfError(NativeMethods.WlanRegisterVirtualStationNotification(client.clientHandle, true, IntPtr.Zero));
+            WifiUtil.ThrowIfError(NativeMethods.WlanRegisterVirtualStationNotification(client.clientHandle, true, IntPtr.Zero));
         }
 
         return client;

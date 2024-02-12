@@ -6,7 +6,7 @@ using ImproveWindows.Ui.WindowsUtils;
 
 namespace ImproveWindows.Ui;
 
-public sealed class MicMute : AppService, IDisposable
+public sealed class MicMute : AppService
 {
     private readonly AudioLevelsService _audioLevelsService;
     private readonly HotKey _h;
@@ -72,8 +72,13 @@ public sealed class MicMute : AppService, IDisposable
         }
     }
 
-    public void Dispose()
+    protected override void Dispose(bool disposing)
     {
-        _h.Dispose();
+        if (disposing)
+        {
+            _h.Dispose();
+        }
+        
+        base.Dispose(disposing);
     }
 }

@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace ImproveWindows.Core.Wifi;
 
-public static class Util
+public static class WifiUtil
 {
     /// <summary>
     /// Helper method to wrap calls to Native WiFi API methods.

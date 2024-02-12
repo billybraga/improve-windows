@@ -6,3 +6,12 @@ RegisterHotKey
 UnregisterHotKey
 FlashWindow
 ShowWindow
+SetWindowPlacement
+GetWindowPlacement
+GetWindowLong
+SetWindowLong
+MoveWindowToDesktop
+RegisterWindowMessage
+CloseWindow
+GetWindowThreadProcessId
+RegisterWindowMessage

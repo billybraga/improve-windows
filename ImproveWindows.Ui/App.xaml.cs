@@ -18,6 +18,7 @@ public partial class App
 
         var kill = Environment.GetCommandLineArgs().Any(x => x == "--kill");
         var overtake = Environment.GetCommandLineArgs().Any(x => x == "--overtake");
+        var ifNotRunning = Environment.GetCommandLineArgs().Any(x => x == "--if-not-running");
         var ids = string.Join(", ", otherProcesses.Select(x => x.Id));
 
         foreach (var otherProcess in otherProcesses)
@@ -28,6 +29,11 @@ public partial class App
             }
 
             otherProcess.Dispose();
+        }
+
+        if (ifNotRunning)
+        {
+            throw new InvalidOperationException($"Already running on PID {ids}");
         }
 
         if (kill)

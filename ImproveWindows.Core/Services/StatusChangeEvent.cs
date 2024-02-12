@@ -9,7 +9,7 @@ public class StatusChangeEventArgs : EventArgs, IEquatable<StatusChangeEventArgs
     public bool Equals(StatusChangeEventArgs? other)
     {
         return IsError == other?.IsError
-            && Status == other?.Status;
+            && Status == other.Status;
     }
 
     public override bool Equals(object? obj)

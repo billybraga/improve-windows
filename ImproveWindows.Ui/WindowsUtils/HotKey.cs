@@ -32,7 +32,7 @@ internal sealed class HotKey : IDisposable
         }
     }
 
-    private bool Register()
+    private void Register()
     {
         var virtualKeyCode = KeyInterop.VirtualKeyFromKey(_key);
         Id = virtualKeyCode + ((int)_keyModifiers * 0x10000);
@@ -52,7 +52,6 @@ internal sealed class HotKey : IDisposable
         DictHotKeyToCalBackProc.Add(Id, this);
 
         Debug.Print(result.ToString() + ", " + Id + ", " + virtualKeyCode);
-        return result;
     }
 
     // ******************************************************************
@@ -102,12 +101,6 @@ internal sealed class HotKey : IDisposable
     public void Dispose()
     {
         Dispose(true);
-        // This object will be cleaned up by the Dispose method.
-        // Therefore, you should call GC.SupressFinalize to
-        // take this object off the finalization queue
-        // and prevent finalization code for this object
-        // from executing a second time.
-        GC.SuppressFinalize(this);
     }
 
     // ******************************************************************

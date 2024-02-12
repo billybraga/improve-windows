@@ -35,11 +35,11 @@ internal static class NativeMethods
         IntPtr hClientHandle,
         [In, MarshalAs(UnmanagedType.LPStruct)]
         Guid interfaceGuid,
-        [In] WlanIntfOpcode OpCode,
+        [In] WlanIntfOpcode opCode,
         IntPtr pReserved,
         [Out] out uint pdwDataSize,
         [Out] out IntPtr ppData,
-        [Out, Optional] out WlanOpcodeValueType pWlanOpcodeValueType
+        [Out] out WlanOpcodeValueType pWlanOpcodeValueType
     );
 
 

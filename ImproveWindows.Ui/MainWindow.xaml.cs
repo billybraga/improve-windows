@@ -19,19 +19,15 @@ public sealed partial class MainWindow : IDisposable
     private readonly List<ServiceInfos> _taskInfos = new();
     private readonly WindowInteropHelper _windowInteropHelper;
 
-    private record ServiceInfos
+    private sealed record ServiceInfos
     {
-        public string Name { get; }
         public Task Task { get; private set; }
         public AppService Service { get; }
-        public ServiceControl ServiceControl { get; }
         
-        public ServiceInfos(string name, Task task, AppService service, ServiceControl serviceControl)
+        public ServiceInfos(Task task, AppService service)
         {
-            Name = name;
             Task = task;
             Service = service;
-            ServiceControl = serviceControl;
         }
 
         public void Restart()
@@ -50,9 +46,9 @@ public sealed partial class MainWindow : IDisposable
         var audioLevels = new AudioLevelsService();
         StartService("MicMute", new MicMute(audioLevels));
         StartService("AudioLevels", audioLevels);
+        StartService("Window", new WindowService());
         StartService("Network", new NetworkService());
         StartService("Memory", new MemoryService());
-        StartService("Window", new WindowService());
 #pragma warning restore CA2000
 
         void StartService(string name, AppService service)
@@ -65,7 +61,7 @@ public sealed partial class MainWindow : IDisposable
                 },
             };
 
-            service.OnLog += (_, args) => serviceControl.AddLog(args.Message);
+            service.OnLog += async (_, args) => await serviceControl.AddLogAsync(args.Message);
             service.OnStatusChange += (_, args) =>
             {
                 serviceControl.SetStatus(args.Status, args.IsError);
@@ -75,7 +71,7 @@ public sealed partial class MainWindow : IDisposable
                 }
             };
 
-            var serviceInfos = new ServiceInfos(name, service.RunAsync(_cancellationTokenSource.Token), service, serviceControl);
+            var serviceInfos = new ServiceInfos(service.RunAsync(_cancellationTokenSource.Token), service);
             _taskInfos.Add(serviceInfos);
 
             serviceControl.OnRestartClick += (_, _) =>

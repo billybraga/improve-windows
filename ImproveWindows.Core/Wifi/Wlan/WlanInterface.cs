@@ -26,7 +26,7 @@ public sealed class WlanInterface
     {
         get
         {
-            Util.ThrowIfError(NativeMethods.WlanQueryInterface(_client.clientHandle, Guid, WlanIntfOpcode.CurrentConnection, IntPtr.Zero, out _, out var valuePtr, out _));
+            WifiUtil.ThrowIfError(NativeMethods.WlanQueryInterface(_client.clientHandle, Guid, WlanIntfOpcode.CurrentConnection, IntPtr.Zero, out _, out var valuePtr, out _));
             try
             {
                 return (WlanConnectionAttributes)Marshal.PtrToStructure(valuePtr, typeof(WlanConnectionAttributes))!;
