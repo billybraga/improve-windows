@@ -6,7 +6,7 @@ namespace ImproveWindows.Ui;
 public partial class ServiceControl
 {
 #if DEBUG
-    private const int LineCount = 3;
+    private const int LineCount = 300;
 #else
     private const int LineCount = 30;
 #endif
@@ -22,7 +22,7 @@ public partial class ServiceControl
     public async Task AddLogAsync(string message)
     {
         var date = DateTime.Now;
-        var completeMessage = $"[{date:HH:mm:ss}] {message}\n";
+        var completeMessage = $"[{date:HH:mm:ss.fff}] {message}\n";
         await Dispatcher.InvokeAsync(
             () => { Logs.Text = completeMessage + GetLogsSubstring(); }
         );

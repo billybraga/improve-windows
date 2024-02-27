@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Windows.Input;
-using System.Windows.Interop;
+﻿using System.Windows.Interop;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
@@ -15,13 +13,13 @@ internal sealed class HotKey : IDisposable
 
     private bool _disposed;
 
-    private readonly Key _key;
+    private readonly VIRTUAL_KEY _key;
     private readonly HOT_KEY_MODIFIERS _keyModifiers;
     private readonly Action<HotKey>? _action;
     
     private int Id { get; set; }
 
-    public HotKey(Key k, HOT_KEY_MODIFIERS keyModifiers, Action<HotKey> action, bool register = true)
+    public HotKey(VIRTUAL_KEY k, HOT_KEY_MODIFIERS keyModifiers, Action<HotKey> action, bool register = true)
     {
         _key = k;
         _keyModifiers = keyModifiers;
@@ -34,14 +32,18 @@ internal sealed class HotKey : IDisposable
 
     private void Register()
     {
-        var virtualKeyCode = KeyInterop.VirtualKeyFromKey(_key);
-        Id = virtualKeyCode + ((int)_keyModifiers * 0x10000);
+        Id = HashCode.Combine(_key, _keyModifiers);
         var result = PInvoke.RegisterHotKey(
             HWND.Null,
             Id,
             _keyModifiers,
-            (uint)virtualKeyCode
+            (uint) _key
         );
+
+        if (!result)
+        {
+            throw new InvalidOperationException($"Got result {result} when calling RegisterHotKey");
+        }
 
         if (DictHotKeyToCalBackProc == null)
         {
@@ -50,8 +52,6 @@ internal sealed class HotKey : IDisposable
         }
 
         DictHotKeyToCalBackProc.Add(Id, this);
-
-        Debug.Print(result.ToString() + ", " + Id + ", " + virtualKeyCode);
     }
 
     // ******************************************************************

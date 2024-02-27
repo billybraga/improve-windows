@@ -10,7 +10,7 @@ namespace ImproveWindows.Core;
 
 public sealed class NetworkService : AppService
 {
-    private const int HighestGoodPing = 75;
+    private const int HighestGoodPing = 250;
     private readonly Ping _googlePinger = new();
     private readonly Ping _cfPinger = new();
     private readonly MovingAverage16 _movingAverage = new();
@@ -49,11 +49,11 @@ public sealed class NetworkService : AppService
 
             SetStatusKey(
                 $"{pingState}, {netState}",
-                $"{pingState} (~{_movingAverage.GetAverage()}ms), {netState}",
+                $"{pingState}, ({_movingAverage})ms, {netState}",
                 pingState != PingState.Ok || netState is not (NetState.WifiOk or NetState.EthernetOk)
             );
 
-            await Task.Delay(5000, cancellationToken);
+            await Task.Delay(15000, cancellationToken);
         }
 
         return;

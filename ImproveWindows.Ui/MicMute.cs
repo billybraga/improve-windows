@@ -1,5 +1,4 @@
-﻿using System.Windows.Input;
-using Windows.Win32.UI.Input.KeyboardAndMouse;
+﻿using Windows.Win32.UI.Input.KeyboardAndMouse;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Ui.WindowsUtils;
@@ -9,41 +8,15 @@ namespace ImproveWindows.Ui;
 public sealed class MicMute : AppService
 {
     private readonly AudioLevelsService _audioLevelsService;
-    private readonly HotKey _h;
 
     public MicMute(AudioLevelsService audioLevelsService)
     {
         _audioLevelsService = audioLevelsService;
-        _h = new HotKey(
-            Key.M,
-            HOT_KEY_MODIFIERS.MOD_CONTROL | HOT_KEY_MODIFIERS.MOD_SHIFT | HOT_KEY_MODIFIERS.MOD_ALT,
-            _ =>
-            {
-                try
-                {
-                    var isMuted = audioLevelsService.TeamsMicMuteState;
-                    if (isMuted is null)
-                    {
-                        Console.Beep(800, 1000);
-                        return;
-                    }
-
-
-                    Console.Beep(isMuted.Value ? 600 : 1000, 200);
-                    audioLevelsService.ChangeTeamsMicMuteState();
-                    Console.Beep(isMuted.Value ? 1000 : 600, 200);
-                }
-                finally
-                {
-                    SetStatusFromAudio();
-                }
-            }
-        );
     }
 
     private void SetStatusFromAudio()
     {
-        var isMuted = _audioLevelsService.TeamsMicMuteState;
+        var isMuted = _audioLevelsService.IsMicMuteState;
 
         if (isMuted is null)
         {
@@ -57,28 +30,37 @@ public sealed class MicMute : AppService
 
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            SetStatus();
-            while (!cancellationToken.IsCancellationRequested)
+        using var h = new HotKey(
+            VIRTUAL_KEY.VK_M,
+            HOT_KEY_MODIFIERS.MOD_CONTROL | HOT_KEY_MODIFIERS.MOD_SHIFT | HOT_KEY_MODIFIERS.MOD_ALT,
+            _ =>
             {
-                SetStatusFromAudio();
-                await Task.Delay(500, cancellationToken);
-            }
-        }
-        finally
-        {
-            _h.Dispose();
-        }
-    }
+                try
+                {
+                    var isMuted = _audioLevelsService.IsMicMuteState;
+                    if (isMuted is null)
+                    {
+                        Console.Beep(800, 1000);
+                        return;
+                    }
 
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _h.Dispose();
-        }
+
+                    Console.Beep(isMuted.Value ? 600 : 1000, 100);
+                    _audioLevelsService.ChangeMicMuteState();
+                    Console.Beep(isMuted.Value ? 1000 : 600, 200);
+                }
+                finally
+                {
+                    SetStatusFromAudio();
+                }
+            }
+        );
         
-        base.Dispose(disposing);
+        SetStatus();
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            SetStatusFromAudio();
+            await Task.Delay(500, cancellationToken);
+        }
     }
 }

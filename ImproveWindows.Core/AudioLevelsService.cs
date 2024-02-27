@@ -4,6 +4,7 @@ using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
 using AudioSwitcher.AudioApi.Observables;
 using AudioSwitcher.AudioApi.Session;
+using ImproveWindows.Core.Extensions;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Core.Windows;
 
@@ -61,8 +62,9 @@ public class AudioLevelsService : AppService
 
     private IAudioSession? _teamsCaptureSession;
     private bool _initialized;
+    private IAudioController? _coreAudioController;
 
-    public bool? TeamsMicMuteState => _teamsCaptureSession?.IsMuted;
+    public bool? IsMicMuteState => _teamsCaptureSession?.IsMuted ?? _coreAudioController?.DefaultCaptureDevice.IsMuted;
 
     private readonly IReadOnlyCollection<LevelState> _levels = new List<LevelState>
     {
@@ -77,7 +79,8 @@ public class AudioLevelsService : AppService
     {
         LogInfo("Starting");
         using var coreAudioController = new CoreAudioController();
-        
+        _coreAudioController = coreAudioController;
+
         var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
 
         try
@@ -85,15 +88,24 @@ public class AudioLevelsService : AppService
             coreAudioController.AudioDeviceChanged.Subscribe(
                 args =>
                 {
+                    LogInfo($"Received {args.ChangedType} for {args.Device.GetDeviceName()}");
                     switch (args.ChangedType)
                     {
                         case DeviceChangedType.DeviceAdded:
-                            AddAudioCaptureDevice((CoreAudioDevice)args.Device);
+                            if (args.Device.IsCaptureDevice)
+                            {
+                                AddAudioCaptureDevice((CoreAudioDevice) args.Device);
+                            }
+
                             break;
                         case DeviceChangedType.DefaultChanged:
-                            // ReSharper disable once AccessToDisposedClosure
-                            defaultPlaybackSetup.Dispose();
-                            defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
+                            if (args.Device.IsPlaybackDevice)
+                            {
+                                // ReSharper disable once AccessToDisposedClosure
+                                defaultPlaybackSetup.Dispose();
+                                defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
+                            }
+
                             break;
                         default:
                             throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
@@ -101,7 +113,7 @@ public class AudioLevelsService : AppService
                 }
             );
 
-            foreach (var captureDevice in await coreAudioController.GetCaptureDevicesAsync())
+            foreach (var captureDevice in (await coreAudioController.GetCaptureDevicesAsync()).OrderBy(x => x.State))
             {
                 AddAudioCaptureDevice(captureDevice);
             }
@@ -123,6 +135,8 @@ public class AudioLevelsService : AppService
 
         IDisposable ConfigureDefaultAudioPlaybackDevice()
         {
+            LogInfo("Configuring default playback");
+
             // ReSharper disable once AccessToDisposedClosure
             var coreAudioDevice = coreAudioController.DefaultPlaybackDevice;
 
@@ -130,13 +144,10 @@ public class AudioLevelsService : AppService
             {
                 return DelegateDisposable.Create(() => { });
             }
-            
-            var defaultPlaybackSessionController = coreAudioDevice.SessionController;
 
+            var defaultPlaybackSessionController = coreAudioDevice.SessionController;
             var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(ConfigureSession);
             var sessionDisconnectSbn = defaultPlaybackSessionController.SessionDisconnected.Subscribe(HandleSessionDisconnected);
-
-            LogInfo("Subscribed");
 
             foreach (var session in defaultPlaybackSessionController)
             {
@@ -146,6 +157,8 @@ public class AudioLevelsService : AppService
             _initialized = true;
 
             UpdateStatus();
+
+            LogInfo("Configured default playback");
 
             return DelegateDisposable.Create(
                 () =>
@@ -159,18 +172,24 @@ public class AudioLevelsService : AppService
 
     private void AddAudioCaptureDevice(CoreAudioDevice captureDevice)
     {
-        var processCaptureSession = ProcessCaptureSession;
-        var processCaptureSessionDisconnection = ProcessCaptureSessionDisconnection;
         var captureController = captureDevice.SessionController;
         if (captureController is null)
         {
             return;
         }
 
-        captureController.SessionCreated.Subscribe(processCaptureSession);
+        LogInfo($"Adding {captureDevice.GetDeviceName()}");
+        var processCaptureSession = ProcessCaptureSession;
+        var processCaptureSessionDisconnection = ProcessCaptureSessionDisconnection;
+        captureController.SessionCreated.Subscribe(ProcessSessionCreated);
         captureController.SessionDisconnected.Subscribe(processCaptureSessionDisconnection);
 
         foreach (var session in captureController)
+        {
+            ProcessSessionCreated(session);
+        }
+
+        void ProcessSessionCreated(IAudioSession session)
         {
             session.MuteChanged.Subscribe(x => processCaptureSession(x.Session));
             session.StateChanged.Subscribe(x => processCaptureSession(x.Session));
@@ -188,17 +207,41 @@ public class AudioLevelsService : AppService
         }
     }
 
-    public bool? ChangeTeamsMicMuteState()
+    public bool? ChangeMicMuteState()
     {
-        if (_teamsCaptureSession is null)
+        bool isMuted;
+        IDevice captureDevice;
+        IAudioSession? session;
+        if (_teamsCaptureSession is not null)
+        {
+            session = _teamsCaptureSession;
+            isMuted = _teamsCaptureSession.IsMuted;
+            captureDevice = _teamsCaptureSession.Device;
+        }
+        else if (_coreAudioController is not null)
+        {
+            session = null;
+            captureDevice = _coreAudioController.DefaultCaptureDevice;
+            isMuted = captureDevice.IsMuted;
+        }
+        else
         {
             return null;
         }
 
         UpdateStatus();
-        var newMuteState = !_teamsCaptureSession.IsMuted;
-        _teamsCaptureSession.Device.Mute(newMuteState);
-        _teamsCaptureSession.IsMuted = newMuteState;
+        var newMuteState = !isMuted;
+        var action = newMuteState
+            ? "Muting"
+            : "Opening";
+        LogInfo($"{action} device {captureDevice.GetDeviceName()}");
+        captureDevice.Mute(newMuteState);
+        if (session != null)
+        {
+            LogInfo($"Muting session {session.DisplayName}");
+            session.IsMuted = newMuteState;
+        }
+
         return newMuteState;
     }
 
@@ -232,7 +275,7 @@ public class AudioLevelsService : AppService
             {
                 if (_teamsCaptureSession != captureAudioSession)
                 {
-                    LogInfo($"Changing teams capture session from \"{_teamsCaptureSession?.Device.Name}\" to \"{captureDevice.Name}\"");
+                    LogInfo($"Changing teams capture session from \"{_teamsCaptureSession?.Device.GetDeviceName()}\" to \"{captureDevice.GetDeviceName()}\"");
                 }
 
                 _teamsCaptureSession = captureAudioSession;
@@ -245,7 +288,7 @@ public class AudioLevelsService : AppService
             ? ""
             : $" ({captureAudioSession.SessionState})";
 
-        LogInfo($"Capture: [{vol}] [{captureDevice?.Name}] {captureAudioSession.DisplayName}{state}");
+        LogInfo($"Capture: [{vol}] [{captureDevice?.GetDeviceName()}] {captureAudioSession.DisplayName}{state}");
     }
 
     private void HandleSessionDisconnected(string id)
@@ -294,7 +337,7 @@ public class AudioLevelsService : AppService
 
     private void UpdateTrackedVolume(LevelState levelState, IAudioSession session)
     {
-        levelState.CurrentSession = new LevelStateSession { Id = session.Id, Volume = (int)session.Volume };
+        levelState.CurrentSession = new LevelStateSession { Id = session.Id, Volume = (int) session.Volume };
 
         if (_initialized)
         {
@@ -361,5 +404,15 @@ public class AudioLevelsService : AppService
         {
             return TeamsCallLevel;
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _coreAudioController?.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 }
