@@ -120,7 +120,7 @@ public class WindowService : AppService
             if (name.Contains("Improve Windows"))
             {
                 // PutWindowInQuadrant(automationElement, true, false);
-                RestoreWindow(automationElement, false, true, (int) (FullWindowWidth * 0.75), HalvedWindowHeight);
+                RestoreWindow(automationElement, false, true, (int) (FullWindowWidth * 0.75), HalvedWindowHeight, WindowPosInsertAfter.None);
             }
         }
         catch (ElementNotAvailableException)
@@ -152,7 +152,8 @@ public class WindowService : AppService
 
             PInvoke.SetWindowPos(
                 new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
-                new HWND(-2 /* HWND_NOTOPMOST */),
+                // Keep the thumbnail top-most
+                WindowPosInsertAfter.TopMost.Value,
                 800,
                 100,
                 (int) size.Width,
@@ -197,11 +198,11 @@ public class WindowService : AppService
 
             LogInfo("Teams screen share window opened");
 
-            PutWindowInQuadrant(automationElement, false, true);
+            PutWindowInQuadrant(automationElement, false, true, WindowPosInsertAfter.None);
 
             if (_teamsMainWindow != null)
             {
-                PutWindowInQuadrant(_teamsMainWindow, false, false);
+                PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
             }
 
             Once(
@@ -213,7 +214,7 @@ public class WindowService : AppService
 
                     if (_teamsMainWindow != null)
                     {
-                        PutWindowInVerticalHalf(_teamsMainWindow, false);
+                        PutWindowInVerticalHalf(_teamsMainWindow, false, WindowPosInsertAfter.None);
                     }
                 }
             );
@@ -247,14 +248,15 @@ public class WindowService : AppService
         }
     }
 
-    private void PutWindowInQuadrant(AutomationElement automationElement, bool left, bool top)
+    private void PutWindowInQuadrant(AutomationElement automationElement, bool left, bool top, WindowPosInsertAfter insertAfter)
     {
         SnapWindow(
             automationElement,
             top,
             left,
             HalvedWindowWidth,
-            HalvedWindowHeight
+            HalvedWindowHeight,
+            insertAfter
         );
     }
 
@@ -268,25 +270,27 @@ public class WindowService : AppService
         return (left ? 0 : (ScreenWidth / 2)) - WindowPadding;
     }
 
-    private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top)
+    private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter)
     {
         SnapWindow(
             automationElement,
             top,
             true,
             FullWindowWidth,
-            HalvedWindowHeight
+            HalvedWindowHeight,
+            insertAfter
         );
     }
 
-    private void PutWindowInVerticalHalf(AutomationElement automationElement, bool left)
+    private void PutWindowInVerticalHalf(AutomationElement automationElement, bool left, WindowPosInsertAfter insertAfter)
     {
         SnapWindow(
             automationElement,
             true,
             left,
             HalvedWindowWidth,
-            FullWindowHeight
+            FullWindowHeight,
+            insertAfter
         );
     }
 
@@ -308,12 +312,28 @@ public class WindowService : AppService
     //     );
     // }
 
-    private void SnapWindow(AutomationElement automationElement, bool top, bool left, int width, int height)
+    private void SnapWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
     {
-        RestoreWindow(automationElement, top, left, width, height);
+        RestoreWindow(automationElement, top, left, width, height, insertAfter);
     }
 
-    private void RestoreWindow(AutomationElement automationElement, bool top, bool left, int width, int height)
+    private struct WindowPosInsertAfter
+    {
+        public static readonly WindowPosInsertAfter Bottom = new(new HWND(1));
+        public static readonly WindowPosInsertAfter NoTopMost = new(new HWND(-2));
+        public static readonly WindowPosInsertAfter Top = new(new HWND(0));
+        public static readonly WindowPosInsertAfter TopMost = new(new HWND(-1));
+        public static readonly WindowPosInsertAfter None = new(default);
+
+        public HWND Value { get; private set; }
+
+        public WindowPosInsertAfter(HWND insertAfterWindow)
+        {
+            Value = insertAfterWindow;
+        }
+    }
+
+    private void RestoreWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
     {
         var rectangle = automationElement.Current.BoundingRectangle;
         if (IsAboutSize(automationElement, width, height))
@@ -336,10 +356,10 @@ public class WindowService : AppService
         {
             throw new InvalidOperationException("Error code restoring window");
         }
-        
+
         var posResult = PInvoke.SetWindowPos(
             windowHandle,
-            default,
+            insertAfter.Value,
             GetPosX(left),
             GetPosY(top),
             width,
@@ -405,7 +425,6 @@ public class WindowService : AppService
     private static void MaximizeWindow(AutomationElement automationElement)
     {
         var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
-        var foregroundWindow = PInvoke.GetForegroundWindow();
         var placementResult = PInvoke.SetWindowPlacement(
             windowHandle,
             new WINDOWPLACEMENT
@@ -414,15 +433,10 @@ public class WindowService : AppService
                 length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
             }
         );
-        
+
         if (!placementResult)
         {
             throw new InvalidOperationException("Error code restoring window");
-        }
-        
-        if (!PInvoke.SetForegroundWindow(foregroundWindow))
-        {
-            throw new InvalidOperationException("Error setting foreground window");
         }
     }
 
@@ -445,7 +459,7 @@ public class WindowService : AppService
                 }
             );
 
-            PutWindowInQuadrant(automationElement, true, true);
+            PutWindowInQuadrant(automationElement, true, true, WindowPosInsertAfter.None);
 
             UpdateMeetingLayout(MeetingState.Window, serviceCancellationToken);
 
@@ -487,16 +501,19 @@ public class WindowService : AppService
     {
         try
         {
-            var openContentElement = automationElement
+            var openContentElements = automationElement
                 .FindAll(
                     TreeScope.Descendants,
                     new AndCondition(
-                        new PropertyCondition(AutomationElement.NameProperty, "Open content in new window"),
+                        new PropertyCondition(AutomationElement.NameProperty, "Pop out"),
                         new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)
                     )
                 )
                 .OfType<AutomationElement>()
-                .FirstOrDefault();
+                .ToArray();
+
+            var openContentElement = openContentElements
+                .SingleOrDefault();
 
             if (openContentElement is null)
             {
@@ -546,6 +563,18 @@ public class WindowService : AppService
 
             try
             {
+                var windowPrevs = new Dictionary<int, HWND?>();
+                HWND? prev = null;
+                PInvoke.EnumWindows(
+                    (hwnd, _) =>
+                    {
+                        windowPrevs[hwnd.Value.ToInt32()] = prev;
+                        prev = hwnd;
+                        return true;
+                    },
+                    IntPtr.Zero
+                );
+
                 var tasks = AutomationElement
                     .RootElement
                     .FindAll(
@@ -557,9 +586,17 @@ public class WindowService : AppService
                     )
                     .OfType<AutomationElement>()
                     .Select(
-                        automationElement => Task.Run(
+                        x => new
+                        {
+                            previousWindow = windowPrevs[x.Current.NativeWindowHandle],
+                            automationElement = x,
+                        }
+                    )
+                    .Select(
+                        x => Task.Run(
                             async () =>
                             {
+                                var automationElement = x.automationElement;
                                 try
                                 {
                                     var name = await WaitForNameAsync(automationElement, cancellationToken);
@@ -568,20 +605,23 @@ public class WindowService : AppService
                                         await Task.Delay(1000, cancellationToken);
                                     }
 
-                                    var current = automationElement.Current;
-
                                     if (name is null)
                                     {
-                                        LogInfo(
-                                            $"Did not find name for {current.ControlType.ProgrammaticName}#{current.AutomationId} (pid {current.ProcessId})"
-                                        );
                                         return;
                                     }
 
+                                    var windowPosInsertAfter = x.previousWindow is not null
+                                        ? new WindowPosInsertAfter(x.previousWindow.Value)
+                                        : WindowPosInsertAfter.Top;
+                                    
                                     if (_meetingState == MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, FreeScreenHeight))
                                     {
                                         LogInfo($"Lowering {name}");
-                                        PutWindowInHorizontalHalf(automationElement, false);
+                                        PutWindowInHorizontalHalf(
+                                            automationElement,
+                                            false,
+                                            windowPosInsertAfter
+                                        );
                                         return;
                                     }
 
@@ -589,10 +629,7 @@ public class WindowService : AppService
                                     {
                                         LogInfo($"Maximizing {name}");
                                         MaximizeWindow(automationElement);
-                                        return;
                                     }
-
-                                    // LogInfo($"Not changing {name} {current.BoundingRectangle.Width}x{current.BoundingRectangle.Height}");
                                 }
                                 catch (ElementNotAvailableException)
                                 {

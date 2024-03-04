@@ -1,6 +1,5 @@
-SetForegroundWindow
-GetForegroundWindow
 SendInput
+EnumWindows
 GetWindowPos
 SetWindowPos
 RegisterHotKey

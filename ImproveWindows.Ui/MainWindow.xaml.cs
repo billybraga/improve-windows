@@ -44,7 +44,7 @@ public sealed partial class MainWindow : IDisposable
         
 #pragma warning disable CA2000
         var audioLevels = new AudioLevelsService();
-        StartService("Vpn", new VpnService());
+        // StartService("Vpn", new VpnService());
         StartService("MicMute", new MicMute(audioLevels));
         StartService("AudioLevels", audioLevels);
         StartService("Window", new WindowService());
