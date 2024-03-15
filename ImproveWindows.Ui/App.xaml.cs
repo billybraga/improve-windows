@@ -25,7 +25,14 @@ public partial class App
         {
             if (kill || overtake)
             {
-                otherProcess.Kill();
+                try
+                {
+                    otherProcess.Kill();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
             }
 
             otherProcess.Dispose();
