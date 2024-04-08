@@ -98,6 +98,7 @@ public class AudioLevelsService : AppService
                             }
 
                             break;
+                        
                         case DeviceChangedType.DefaultChanged:
                             if (args.Device.IsPlaybackDevice)
                             {
@@ -107,6 +108,11 @@ public class AudioLevelsService : AppService
                             }
 
                             break;
+                        
+                        case DeviceChangedType.StateChanged:
+                            LogInfo($"{args.Device.Name} is {args.Device.State}");
+                            break;
+                        
                         default:
                             throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
                     }
@@ -146,12 +152,12 @@ public class AudioLevelsService : AppService
             }
 
             var defaultPlaybackSessionController = coreAudioDevice.SessionController;
-            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(ConfigureSession);
+            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(HandleSession);
             var sessionDisconnectSbn = defaultPlaybackSessionController.SessionDisconnected.Subscribe(HandleSessionDisconnected);
 
             foreach (var session in defaultPlaybackSessionController)
             {
-                ConfigureSession(session);
+                HandleSession(session);
             }
 
             _initialized = true;
@@ -303,8 +309,10 @@ public class AudioLevelsService : AppService
         }
     }
 
-    private void ConfigureSession(IAudioSession args)
+    private void HandleSession(IAudioSession args)
     {
+        LogInfo($"Handling session {args.DisplayName} ({args.SessionState}) on {args.Device.Name}");
+        
         var state = AdjustSessionVolume(args);
 
         if (state is null)

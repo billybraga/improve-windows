@@ -50,6 +50,7 @@ public sealed partial class MainWindow : IDisposable
         StartService("Window", new WindowService());
         StartService("Network", new NetworkService());
         StartService("Memory", new MemoryService());
+        StartService("HdmiAudio", new HdmiAudioService());
 #pragma warning restore CA2000
 
         void StartService(string name, AppService service)

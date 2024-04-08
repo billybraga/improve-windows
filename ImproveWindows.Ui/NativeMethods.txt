@@ -1,6 +1,5 @@
 SendInput
 EnumWindows
-GetWindowPos
 SetWindowPos
 RegisterHotKey
 UnregisterHotKey
@@ -10,7 +9,6 @@ SetWindowPlacement
 GetWindowPlacement
 GetWindowLong
 SetWindowLong
-MoveWindowToDesktop
 RegisterWindowMessage
 CloseWindow
 GetWindowThreadProcessId
