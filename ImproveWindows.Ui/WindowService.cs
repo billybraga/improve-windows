@@ -25,6 +25,7 @@ public class WindowService : AppService
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeeting;
     private MeetingState _meetingState;
     private bool _meetingWindowShareActive;
+    private readonly HashSet<string> _meetingButtons = new();
 
     private enum MeetingState
     {
@@ -336,9 +337,10 @@ public class WindowService : AppService
     private void RestoreWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
     {
         var rectangle = automationElement.Current.BoundingRectangle;
+        var name = automationElement.Current.Name;
         if (IsAboutSize(automationElement, width, height))
         {
-            LogInfo($"Skipping resize to {width}x{height} (currently {rectangle.Width}x{rectangle.Height}) of {automationElement.Current.Name}");
+            LogInfo($"Skipping resize to {width}x{height} (currently {rectangle.Width}x{rectangle.Height}) of {name}");
             return;
         }
 
@@ -369,7 +371,7 @@ public class WindowService : AppService
 
         if (!posResult)
         {
-            throw new InvalidOperationException("Error code positioning window");
+            throw new InvalidOperationException($"Error code {posResult} positioning window {name}");
         }
     }
 
@@ -501,20 +503,8 @@ public class WindowService : AppService
     {
         try
         {
-            var openContentElements = automationElement
-                .FindAll(
-                    TreeScope.Descendants,
-                    new AndCondition(
-                        new PropertyCondition(AutomationElement.NameProperty, "Pop out"),
-                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)
-                    )
-                )
-                .OfType<AutomationElement>()
-                .ToArray();
-
-            var openContentElement = openContentElements
-                .SingleOrDefault();
-
+            var openContentElement = FindPopoutElement(automationElement);
+            
             if (openContentElement is null)
             {
                 return;
@@ -529,6 +519,57 @@ public class WindowService : AppService
         catch (ElementNotAvailableException)
         {
         }
+    }
+    
+    // private AutomationElement? GetPopoutElement(AutomationElement automationElement)
+    // {
+    //     var openContentElements = automationElement
+    //         .FindAll(
+    //             TreeScope.Descendants,
+    //             new AndCondition(
+    //                 new PropertyCondition(AutomationElement.NameProperty, "Pop out"),
+    //                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)
+    //             )
+    //         )
+    //         .OfType<AutomationElement>()
+    //         .ToArray();
+    //     
+    //     return openContentElements.SingleOrDefault();
+    // }
+    
+    private AutomationElement? FindPopoutElement(AutomationElement automationElement)
+    {
+        var openContentElements = automationElement
+            .FindAll(
+                TreeScope.Descendants,
+                new OrCondition(
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                    new PropertyCondition(AutomationElement.NameProperty, "Pop out"),
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem)
+                )
+            )
+            .OfType<AutomationElement>()
+            .ToArray();
+        
+        foreach (var contentElement in openContentElements)
+        {
+            try
+            {
+                var currentName = contentElement.Current.Name;
+                
+                if (!_meetingButtons.Add(currentName))
+                {
+                    continue;
+                }
+                
+                LogInfo($"{contentElement.Current.ControlType.ProgrammaticName}: {currentName}");
+            }
+            catch (ElementNotAvailableException)
+            {
+            }
+        }
+        
+        return openContentElements.SingleOrDefault(x => x.Current.Name.Contains("Pop out"));
     }
 
     private CancellationTokenSource? _layoutDuringMeetingCts;

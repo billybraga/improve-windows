@@ -9,7 +9,7 @@ internal interface ILoopAudioPlayer : IDisposable
     void TryDispose();
 }
 
-internal class WaveOutLoopAudioPlayer : ILoopAudioPlayer
+internal sealed class WaveOutLoopAudioPlayer : ILoopAudioPlayer
 {
     private WaveOut? _soundPlayer;
     private bool _isDisposed;
@@ -85,7 +85,7 @@ internal class WaveOutLoopAudioPlayer : ILoopAudioPlayer
     }
 }
 
-internal class AudioControl
+internal sealed class AudioControl
 {
     private static readonly Lazy<AudioControl> InstanceLazy = new(() => new AudioControl());
     public static AudioControl Instance => InstanceLazy.Value;
@@ -107,7 +107,8 @@ internal class AudioControl
         var assembly = Assembly.GetExecutingAssembly();
         var resourceName = $"{assembly.GetName().Name}.Resources.inaudible.wav";
 
-        _sound = assembly.GetManifestResourceStream(resourceName);
+        _sound = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Could not get {resourceName}");
 
         _audioPlayers = PlaySoundAsync(_sound);
 
