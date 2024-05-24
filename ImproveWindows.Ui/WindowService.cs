@@ -116,12 +116,19 @@ public class WindowService : AppService
             if (name.Contains("Microsoft Teams"))
             {
                 await HandleTeamsWindow(automationElement, cancellationToken);
+                return;
             }
 
             if (name.Contains("Improve Windows"))
             {
                 // PutWindowInQuadrant(automationElement, true, false);
                 RestoreWindow(automationElement, false, true, (int) (FullWindowWidth * 0.75), HalvedWindowHeight, WindowPosInsertAfter.None);
+                return;
+            }
+            
+            if (_meetingState == MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight))
+            {
+                PutWindowInHorizontalHalf(automationElement, false, WindowPosInsertAfter.TopMost);
             }
         }
         catch (ElementNotAvailableException)
@@ -198,13 +205,10 @@ public class WindowService : AppService
             _meetingWindowShareActive = true;
 
             LogInfo("Teams screen share window opened");
+            
+            UpdateTeamsMainWindowPosition();
 
             PutWindowInQuadrant(automationElement, false, true, WindowPosInsertAfter.None);
-
-            if (_teamsMainWindow != null)
-            {
-                PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
-            }
 
             Once(
                 automationElement,
@@ -213,10 +217,7 @@ public class WindowService : AppService
                 {
                     _meetingWindowShareActive = false;
 
-                    if (_teamsMainWindow != null)
-                    {
-                        PutWindowInVerticalHalf(_teamsMainWindow, false, WindowPosInsertAfter.None);
-                    }
+                    UpdateTeamsMainWindowPosition();
                 }
             );
 
@@ -493,12 +494,25 @@ public class WindowService : AppService
         finally
         {
             LogInfo("Meeting task finishing");
-            UpdateMeetingLayout(MeetingState.None, serviceCancellationToken);
             _meetingWindowShareActive = false;
+            UpdateMeetingLayout(MeetingState.None, serviceCancellationToken);
             LogInfo("Meeting task finished");
         }
     }
-
+    
+    private void UpdateTeamsMainWindowPosition()
+    {
+        if (_teamsMainWindow == null)
+            return;
+        
+        if (_meetingWindowShareActive)
+            PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
+        else if (_meetingState == MeetingState.Window)
+            PutWindowInQuadrant(_teamsMainWindow, false, true, WindowPosInsertAfter.None);
+        else
+            PutWindowInVerticalHalf(_teamsMainWindow, false, WindowPosInsertAfter.None);
+    }
+    
     private void ClickOnOpenContentInNewWindow(AutomationElement automationElement)
     {
         try
@@ -562,7 +576,7 @@ public class WindowService : AppService
                     continue;
                 }
                 
-                LogInfo($"{contentElement.Current.ControlType.ProgrammaticName}: {currentName}");
+                // LogInfo($"{contentElement.Current.ControlType.ProgrammaticName}: {currentName}");
             }
             catch (ElementNotAvailableException)
             {
@@ -679,6 +693,7 @@ public class WindowService : AppService
                             cancellationToken
                         )
                     )
+                    .Concat([Task.Run(UpdateTeamsMainWindowPosition, cancellationToken)])
                     .ToArray();
 
                 await Task.WhenAll(tasks);
