@@ -19,21 +19,21 @@ public class WindowService : AppService
     private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
     private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
     private const int HalvedWindowHeight = (FreeScreenHeight / 2) + (WindowPadding * 1);
-
+    
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(2);
-
+    
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeeting;
     private MeetingState _meetingState;
     private bool _meetingWindowShareActive;
     private readonly HashSet<string> _meetingButtons = new();
-
+    
     private enum MeetingState
     {
         None,
         Window,
         Thumbnail,
     }
-
+    
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         try
@@ -48,14 +48,14 @@ public class WindowService : AppService
                     {
                         return;
                     }
-
+                    
                     using var handleWindowTask = HandleWindowAsync(automationElement, cancellationToken);
                     handleWindowTask
                         .GetAwaiter()
                         .GetResult();
                 }
             );
-
+            
             await Task.Run(
                 async () =>
                 {
@@ -70,12 +70,12 @@ public class WindowService : AppService
                                     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Pane)
                                 )
                             );
-
+                        
                         var tasks = currentWindows
                             .OfType<AutomationElement>()
                             .Select(x => HandleWindowAsync(x, cancellationToken))
                             .ToArray();
-
+                        
                         await Task.WhenAll(tasks);
                     }
                     catch (Exception e)
@@ -85,12 +85,12 @@ public class WindowService : AppService
                 },
                 cancellationToken
             );
-
+            
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(1000, cancellationToken);
             }
-
+            
             if (_layoutDuringMeetingTask != null)
             {
                 await _layoutDuringMeetingTask;
@@ -101,24 +101,24 @@ public class WindowService : AppService
             Automation.RemoveAllEventHandlers();
         }
     }
-
+    
     private async Task HandleWindowAsync(AutomationElement automationElement, CancellationToken cancellationToken)
     {
         try
         {
             var name = await WaitForNameAsync(automationElement, cancellationToken);
-
+            
             if (name is null)
             {
                 return;
             }
-
+            
             if (name.Contains("Microsoft Teams"))
             {
                 await HandleTeamsWindow(automationElement, cancellationToken);
                 return;
             }
-
+            
             if (name.Contains("Improve Windows"))
             {
                 // PutWindowInQuadrant(automationElement, true, false);
@@ -139,25 +139,25 @@ public class WindowService : AppService
             LogError(e);
         }
     }
-
+    
     private async Task HandleTeamsWindow(
         AutomationElement automationElement,
         CancellationToken cancellationToken
     )
     {
         var size = automationElement.Current.BoundingRectangle;
-
+        
         if (IsAboutSize(automationElement, HalvedWindowWidth, FreeScreenHeight))
         {
             _teamsMainWindow = automationElement;
             LogInfo($"Skipped Teams main window (height {size.Height})");
             return;
         }
-
+        
         if (size is { Height: < 500, Width: < 500 })
         {
             LogInfo($"Teams thumbnail opened ({size.Width}x{size.Height})");
-
+            
             PInvoke.SetWindowPos(
                 new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
                 // Keep the thumbnail top-most
@@ -168,7 +168,7 @@ public class WindowService : AppService
                 (int) size.Height,
                 default
             );
-
+            
             Once(
                 automationElement,
                 WindowPattern.WindowClosedEvent,
@@ -178,9 +178,9 @@ public class WindowService : AppService
                         async () =>
                         {
                             LogInfo("Thumbnail closed");
-
+                            
                             await Task.Delay(500, cancellationToken);
-
+                            
                             if (_meetingState == MeetingState.Thumbnail)
                             {
                                 UpdateMeetingLayout(MeetingState.Window, cancellationToken);
@@ -190,9 +190,9 @@ public class WindowService : AppService
                     );
                 }
             );
-
+            
             UpdateMeetingLayout(MeetingState.Thumbnail, cancellationToken);
-
+            
             LogInfo("Teams thumbnail moved");
         }
         else if (_meetingState > MeetingState.None)
@@ -201,32 +201,32 @@ public class WindowService : AppService
             {
                 return;
             }
-
+            
             _meetingWindowShareActive = true;
-
+            
             LogInfo("Teams screen share window opened");
             
             UpdateTeamsMainWindowPosition();
-
+            
             PutWindowInQuadrant(automationElement, false, true, WindowPosInsertAfter.None);
-
+            
             Once(
                 automationElement,
                 WindowPattern.WindowClosedEvent,
                 () =>
                 {
                     _meetingWindowShareActive = false;
-
+                    
                     UpdateTeamsMainWindowPosition();
                 }
             );
-
+            
             LogInfo("Teams screen share window moved");
         }
         else
         {
             LogInfo("Teams meeting opened");
-
+            
             if (_teamsMeeting.HasValue)
             {
                 var teamsMeeting = _teamsMeeting.Value;
@@ -243,13 +243,13 @@ public class WindowService : AppService
                     teamsMeeting.Task.Dispose();
                 }
             }
-
+            
             var cancellationTokenSource = new CancellationTokenSource();
             _teamsMeeting = (ManageTeamsMeetingWindowAsync(automationElement, cancellationToken, cancellationTokenSource.Token),
                 cancellationTokenSource);
         }
     }
-
+    
     private void PutWindowInQuadrant(AutomationElement automationElement, bool left, bool top, WindowPosInsertAfter insertAfter)
     {
         SnapWindow(
@@ -261,17 +261,17 @@ public class WindowService : AppService
             insertAfter
         );
     }
-
+    
     private static int GetPosY(bool top)
     {
         return top ? 0 : FreeScreenHeight / 2;
     }
-
+    
     private static int GetPosX(bool left)
     {
         return (left ? 0 : (ScreenWidth / 2)) - WindowPadding;
     }
-
+    
     private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter)
     {
         SnapWindow(
@@ -283,7 +283,7 @@ public class WindowService : AppService
             insertAfter
         );
     }
-
+    
     private void PutWindowInVerticalHalf(AutomationElement automationElement, bool left, WindowPosInsertAfter insertAfter)
     {
         SnapWindow(
@@ -295,7 +295,7 @@ public class WindowService : AppService
             insertAfter
         );
     }
-
+    
     // private void SnapWindow(AutomationElement automationElement, bool top, bool left, int width, int height)
     // {
     //     var rectangle = automationElement.Current.BoundingRectangle;
@@ -313,12 +313,12 @@ public class WindowService : AppService
     //         height
     //     );
     // }
-
+    
     private void SnapWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
     {
         RestoreWindow(automationElement, top, left, width, height, insertAfter);
     }
-
+    
     private struct WindowPosInsertAfter
     {
         public static readonly WindowPosInsertAfter Bottom = new(new HWND(1));
@@ -326,15 +326,15 @@ public class WindowService : AppService
         public static readonly WindowPosInsertAfter Top = new(new HWND(0));
         public static readonly WindowPosInsertAfter TopMost = new(new HWND(-1));
         public static readonly WindowPosInsertAfter None = new(default);
-
+        
         public HWND Value { get; private set; }
-
+        
         public WindowPosInsertAfter(HWND insertAfterWindow)
         {
             Value = insertAfterWindow;
         }
     }
-
+    
     private void RestoreWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
     {
         var rectangle = automationElement.Current.BoundingRectangle;
@@ -344,7 +344,7 @@ public class WindowService : AppService
             LogInfo($"Skipping resize to {width}x{height} (currently {rectangle.Width}x{rectangle.Height}) of {name}");
             return;
         }
-
+        
         var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
         var placementResult = PInvoke.SetWindowPlacement(
             windowHandle,
@@ -354,12 +354,12 @@ public class WindowService : AppService
                 length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
             }
         );
-
+        
         if (!placementResult)
         {
             throw new InvalidOperationException("Error code restoring window");
         }
-
+        
         var posResult = PInvoke.SetWindowPos(
             windowHandle,
             insertAfter.Value,
@@ -369,13 +369,13 @@ public class WindowService : AppService
             height,
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
         );
-
+        
         if (!posResult)
         {
             throw new InvalidOperationException($"Error code {posResult} positioning window {name}");
         }
     }
-
+    
     // private static void MaximizeWindow(AutomationElement automationElement, int? x = null, int? y = null, int width = FullWindowWidth, int height = MaxWindowHeight)
     // {
     //     var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
@@ -424,7 +424,7 @@ public class WindowService : AppService
     //         throw new InvalidOperationException("Error SetWindowPos");
     //     }
     // }
-
+    
     private static void MaximizeWindow(AutomationElement automationElement)
     {
         var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
@@ -436,19 +436,19 @@ public class WindowService : AppService
                 length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
             }
         );
-
+        
         if (!placementResult)
         {
             throw new InvalidOperationException("Error code restoring window");
         }
     }
-
+    
     private async Task ManageTeamsMeetingWindowAsync(AutomationElement automationElement, CancellationToken serviceCancellationToken,
         CancellationToken cancellationToken)
     {
         using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var meetingCancellationToken = cancellationTokenSource.Token;
-
+        
         try
         {
             Once(
@@ -461,25 +461,25 @@ public class WindowService : AppService
                     cancellationTokenSource.Cancel();
                 }
             );
-
+            
             PutWindowInQuadrant(automationElement, true, true, WindowPosInsertAfter.None);
-
+            
             UpdateMeetingLayout(MeetingState.Window, serviceCancellationToken);
-
+            
             LogInfo("Teams meeting started");
-
+            
             while (!meetingCancellationToken.IsCancellationRequested)
             {
                 if (!IsAlive(automationElement))
                 {
                     return;
                 }
-
+                
                 if (!_meetingWindowShareActive)
                 {
                     ClickOnOpenContentInNewWindow(automationElement);
                 }
-
+                
                 await Task.Delay(1000, meetingCancellationToken);
             }
         }
@@ -505,12 +505,17 @@ public class WindowService : AppService
         if (_teamsMainWindow == null)
             return;
         
-        if (_meetingWindowShareActive)
-            PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
-        else if (_meetingState == MeetingState.Window)
-            PutWindowInQuadrant(_teamsMainWindow, false, true, WindowPosInsertAfter.None);
-        else
+        if (_meetingState == MeetingState.None)
+        {
             PutWindowInVerticalHalf(_teamsMainWindow, false, WindowPosInsertAfter.None);
+        }
+        else
+        {
+            if (_meetingWindowShareActive)
+                PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
+            else if (_meetingState == MeetingState.Window)
+                PutWindowInQuadrant(_teamsMainWindow, false, true, WindowPosInsertAfter.None);
+        }
     }
     
     private void ClickOnOpenContentInNewWindow(AutomationElement automationElement)
@@ -523,7 +528,7 @@ public class WindowService : AppService
             {
                 return;
             }
-
+            
             var message = openContentElement.Click();
             if (message is not null)
             {
@@ -585,23 +590,23 @@ public class WindowService : AppService
         
         return openContentElements.SingleOrDefault(x => x.Current.Name.Contains("Pop out"));
     }
-
+    
     private CancellationTokenSource? _layoutDuringMeetingCts;
     private Task? _layoutDuringMeetingTask;
     private AutomationElement? _teamsMainWindow;
-
+    
     private void UpdateMeetingLayout(MeetingState state, CancellationToken serviceCancellationToken)
     {
         _meetingState = state;
         _layoutDuringMeetingTask = DoWork();
         LogInfo($"--- Queued meeting layout to {state} ---");
         return;
-
+        
         async Task DoWork()
         {
             using var newCts = CancellationTokenSource.CreateLinkedTokenSource(serviceCancellationToken);
             var oldCts = Interlocked.CompareExchange(ref _layoutDuringMeetingCts, newCts, null);
-
+            
             if (oldCts is not null && !oldCts.IsCancellationRequested)
             {
                 LogInfo("Cancelling old layout");
@@ -613,9 +618,9 @@ public class WindowService : AppService
                 {
                 }
             }
-
+            
             var cancellationToken = newCts.Token;
-
+            
             try
             {
                 var windowPrevs = new Dictionary<int, HWND?>();
@@ -629,7 +634,7 @@ public class WindowService : AppService
                     },
                     IntPtr.Zero
                 );
-
+                
                 var tasks = AutomationElement
                     .RootElement
                     .FindAll(
@@ -659,12 +664,12 @@ public class WindowService : AppService
                                     {
                                         await Task.Delay(1000, cancellationToken);
                                     }
-
+                                    
                                     if (name is null)
                                     {
                                         return;
                                     }
-
+                                    
                                     var windowPosInsertAfter = x.previousWindow is not null
                                         ? new WindowPosInsertAfter(x.previousWindow.Value)
                                         : WindowPosInsertAfter.Top;
@@ -679,7 +684,7 @@ public class WindowService : AppService
                                         );
                                         return;
                                     }
-
+                                    
                                     if (_meetingState != MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight))
                                     {
                                         LogInfo($"Maximizing {name}");
@@ -695,9 +700,9 @@ public class WindowService : AppService
                     )
                     .Concat([Task.Run(UpdateTeamsMainWindowPosition, cancellationToken)])
                     .ToArray();
-
+                
                 await Task.WhenAll(tasks);
-
+                
                 LogInfo("--- Finished meeting layout ---");
             }
             catch (OperationCanceledException) { }
@@ -707,7 +712,7 @@ public class WindowService : AppService
             }
         }
     }
-
+    
     private static string? TryGetName(AutomationElement automationElement)
     {
         try
@@ -719,7 +724,7 @@ public class WindowService : AppService
             return null;
         }
     }
-
+    
     private static bool IsAlive(AutomationElement automationElement)
     {
         try
@@ -732,7 +737,7 @@ public class WindowService : AppService
             return false;
         }
     }
-
+    
     private static async Task<string?> WaitForNameAsync(
         AutomationElement automationElement,
         CancellationToken cancellationToken
@@ -740,26 +745,26 @@ public class WindowService : AppService
     {
         var name = TryGetName(automationElement);
         var start = DateTime.Now;
-
+        
         while (string.IsNullOrEmpty(name))
         {
             if ((DateTime.Now - start) > MaxWaitForName)
             {
                 return null;
             }
-
+            
             await Task.Delay(100, cancellationToken);
             name = TryGetName(automationElement);
         }
-
+        
         return name;
     }
-
+    
     private static bool IsAbout(double value, double reference)
     {
         return (Math.Abs(value - reference) / reference) < 0.05;
     }
-
+    
     private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight)
     {
         try
@@ -772,7 +777,7 @@ public class WindowService : AppService
             return false;
         }
     }
-
+    
     private void Once(AutomationElement automationElement, AutomationEvent automationEvent, Action onClose)
     {
         AutomationEventHandler automationEventHandler = default!;
@@ -787,10 +792,10 @@ public class WindowService : AppService
             {
                 LogError(e);
             }
-
+            
             onClose();
         };
-
+        
         Automation.AddAutomationEventHandler(
             automationEvent,
             automationElement,

@@ -17,55 +17,55 @@ public class AudioLevelsService : AppService
         public required string Id { get; init; }
         public required int Volume { get; init; }
     }
-
+    
     private sealed record LevelState
     {
         public LevelStateSession? CurrentSession { get; set; }
-
+        
         public bool Valid => CurrentSession == null
             || (
                 CurrentSession.Value.Volume >= MinExpectedLevel
                 && CurrentSession.Value.Volume <= MaxExpectedLevel
             );
-
+        
         public string Name { get; init; }
         public int MinExpectedLevel { get; init; }
         public int MaxExpectedLevel { get; init; }
-
+        
         public LevelState(string name, int minExpectedLevel, int? maxExpectedLevel = null)
         {
             Name = name;
             MinExpectedLevel = minExpectedLevel;
             MaxExpectedLevel = maxExpectedLevel ?? MinExpectedLevel;
         }
-
+        
         public override string ToString()
         {
             var state = Valid
                 ? "✅"
                 : "❌";
-
+            
             return $"{Name} {state}";
         }
     }
-
+    
     private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50);
     private static readonly LevelState TeamsCallLevel = new("Call", 80, 100);
-    private static readonly LevelState ChromeLevel = new("Chrome", 100);
+    private static readonly LevelState ChromeLevel = new("Chrome", 60, 100);
     private static readonly LevelState SystemLevel = new("System", 25);
-    private static readonly LevelState YtmLevel = new("YTM", 25);
-
+    private static readonly LevelState YtmLevel = new("YTM", 40, 100);
+    
     private static readonly Func<Process, int> GetParentProcessId = typeof(Process)
         .GetProperty("ParentProcessId", BindingFlags.Instance | BindingFlags.NonPublic)!
         .GetMethod!
         .CreateDelegate<Func<Process, int>>();
-
+    
     private IAudioSession? _teamsCaptureSession;
     private bool _initialized;
     private IAudioController? _coreAudioController;
-
+    
     public bool? IsMicMuteState => _teamsCaptureSession?.IsMuted ?? _coreAudioController?.DefaultCaptureDevice.IsMuted;
-
+    
     private readonly IReadOnlyCollection<LevelState> _levels = new List<LevelState>
     {
         TeamsNotificationsLevel,
@@ -74,15 +74,15 @@ public class AudioLevelsService : AppService
         YtmLevel,
         SystemLevel,
     };
-
+    
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         LogInfo("Starting");
         using var coreAudioController = new CoreAudioController();
         _coreAudioController = coreAudioController;
-
+        
         var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
-
+        
         try
         {
             coreAudioController.AudioDeviceChanged.Subscribe(
@@ -96,7 +96,7 @@ public class AudioLevelsService : AppService
                             {
                                 AddAudioCaptureDevice((CoreAudioDevice) args.Device);
                             }
-
+                            
                             break;
                         
                         case DeviceChangedType.DefaultChanged:
@@ -106,7 +106,7 @@ public class AudioLevelsService : AppService
                                 defaultPlaybackSetup.Dispose();
                                 defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
                             }
-
+                            
                             break;
                         
                         case DeviceChangedType.StateChanged:
@@ -118,19 +118,19 @@ public class AudioLevelsService : AppService
                     }
                 }
             );
-
+            
             foreach (var captureDevice in (await coreAudioController.GetCaptureDevicesAsync()).OrderBy(x => x.State))
             {
                 AddAudioCaptureDevice(captureDevice);
             }
-
+            
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (_levels.Any(x => !x.Valid))
                 {
                     Console.Beep();
                 }
-
+                
                 await Task.Delay(10000, cancellationToken);
             }
         }
@@ -138,34 +138,40 @@ public class AudioLevelsService : AppService
         {
             defaultPlaybackSetup.Dispose();
         }
-
+        
         IDisposable ConfigureDefaultAudioPlaybackDevice()
         {
             LogInfo("Configuring default playback");
-
+            
             // ReSharper disable once AccessToDisposedClosure
             var coreAudioDevice = coreAudioController.DefaultPlaybackDevice;
-
+            
             if (coreAudioDevice is null)
             {
                 return DelegateDisposable.Create(() => { });
             }
-
+            
             var defaultPlaybackSessionController = coreAudioDevice.SessionController;
-            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(HandleSession);
+            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(
+                session =>
+                {
+                    LogInfo($"Session created for {session.DisplayName}");
+                    HandleSession(session);
+                }
+            );
             var sessionDisconnectSbn = defaultPlaybackSessionController.SessionDisconnected.Subscribe(HandleSessionDisconnected);
-
+            
             foreach (var session in defaultPlaybackSessionController)
             {
                 HandleSession(session);
             }
-
+            
             _initialized = true;
-
+            
             UpdateStatus();
-
+            
             LogInfo("Configured default playback");
-
+            
             return DelegateDisposable.Create(
                 () =>
                 {
@@ -175,7 +181,7 @@ public class AudioLevelsService : AppService
             );
         }
     }
-
+    
     private void AddAudioCaptureDevice(CoreAudioDevice captureDevice)
     {
         var captureController = captureDevice.SessionController;
@@ -183,18 +189,18 @@ public class AudioLevelsService : AppService
         {
             return;
         }
-
+        
         LogInfo($"Adding {captureDevice.GetDeviceName()}");
         var processCaptureSession = ProcessCaptureSession;
         var processCaptureSessionDisconnection = ProcessCaptureSessionDisconnection;
         captureController.SessionCreated.Subscribe(ProcessSessionCreated);
         captureController.SessionDisconnected.Subscribe(processCaptureSessionDisconnection);
-
+        
         foreach (var session in captureController)
         {
             ProcessSessionCreated(session);
         }
-
+        
         void ProcessSessionCreated(IAudioSession session)
         {
             session.MuteChanged.Subscribe(x => processCaptureSession(x.Session));
@@ -203,7 +209,7 @@ public class AudioLevelsService : AppService
             processCaptureSession(session);
         }
     }
-
+    
     private void ProcessCaptureSessionDisconnection(string id)
     {
         if (_teamsCaptureSession?.Id == id)
@@ -212,7 +218,7 @@ public class AudioLevelsService : AppService
             UpdateStatus();
         }
     }
-
+    
     public bool? ChangeMicMuteState()
     {
         bool isMuted;
@@ -234,7 +240,7 @@ public class AudioLevelsService : AppService
         {
             return null;
         }
-
+        
         UpdateStatus();
         var newMuteState = !isMuted;
         var action = newMuteState
@@ -247,10 +253,10 @@ public class AudioLevelsService : AppService
             LogInfo($"Muting session {session.DisplayName}");
             session.IsMuted = newMuteState;
         }
-
+        
         return newMuteState;
     }
-
+    
     private void UpdateStatus()
     {
         var levels = string.Join(", ", _levels.Where(x => x.CurrentSession != null));
@@ -262,14 +268,14 @@ public class AudioLevelsService : AppService
             error
         );
     }
-
+    
     private void ProcessCaptureSession(IAudioSession captureAudioSession)
     {
         if (captureAudioSession.IsSystemSession)
         {
             return;
         }
-
+        
         var captureDevice = captureAudioSession.Device;
         if (captureAudioSession.DisplayName.Contains("teams", StringComparison.OrdinalIgnoreCase))
         {
@@ -281,22 +287,24 @@ public class AudioLevelsService : AppService
             {
                 if (_teamsCaptureSession != captureAudioSession)
                 {
-                    LogInfo($"Changing teams capture session from \"{_teamsCaptureSession?.Device.GetDeviceName()}\" to \"{captureDevice.GetDeviceName()}\"");
+                    LogInfo(
+                        $"Changing teams capture session from \"{_teamsCaptureSession?.Device.GetDeviceName()}\" to \"{captureDevice.GetDeviceName()}\""
+                    );
                 }
-
+                
                 _teamsCaptureSession = captureAudioSession;
                 UpdateStatus();
             }
         }
-
+        
         var vol = captureAudioSession.IsMuted ? " -  " : $"{captureAudioSession.Volume:00}%";
         var state = captureAudioSession.SessionState == AudioSessionState.Active
             ? ""
             : $" ({captureAudioSession.SessionState})";
-
+        
         LogInfo($"Capture: [{vol}] [{captureDevice?.GetDeviceName()}] {captureAudioSession.DisplayName}{state}");
     }
-
+    
     private void HandleSessionDisconnected(string id)
     {
         foreach (var levelState in _levels)
@@ -308,18 +316,18 @@ public class AudioLevelsService : AppService
             }
         }
     }
-
+    
     private void HandleSession(IAudioSession args)
     {
         LogInfo($"Handling session {args.DisplayName} ({args.SessionState}) on {args.Device.Name}");
         
         var state = AdjustSessionVolume(args);
-
+        
         if (state is null)
         {
             return;
         }
-
+        
         args.VolumeChanged.Subscribe(
             x =>
             {
@@ -328,7 +336,7 @@ public class AudioLevelsService : AppService
             }
         );
     }
-
+    
     private LevelState? AdjustSessionVolume(IAudioSession session)
     {
         var state = GetSessionInfo(session);
@@ -336,30 +344,30 @@ public class AudioLevelsService : AppService
         {
             return null;
         }
-
+        
         session.Volume = state.MinExpectedLevel;
         UpdateTrackedVolume(state, session);
         LogInfo($"{state}, {session.Volume}%");
         return state;
     }
-
+    
     private void UpdateTrackedVolume(LevelState levelState, IAudioSession session)
     {
         levelState.CurrentSession = new LevelStateSession { Id = session.Id, Volume = (int) session.Volume };
-
+        
         if (_initialized)
         {
             UpdateStatus();
         }
     }
-
+    
     private static LevelState? GetSessionInfo(IAudioSession session)
     {
         if (session.IsSystemSession)
         {
             return SystemLevel;
         }
-
+        
         if (session.DisplayName.Equals("microsoft teams", StringComparison.OrdinalIgnoreCase))
         {
             var process = Process.GetProcessById(session.ProcessId);
@@ -369,12 +377,12 @@ public class AudioLevelsService : AppService
                 ? AdjustTeamsNotifications()
                 : AdjustTeamsCalls();
         }
-
+        
         if (session.DisplayName.Equals("Microsoft Teams (work or school)", StringComparison.OrdinalIgnoreCase))
         {
             return AdjustTeamsCalls();
         }
-
+        
         if (session.DisplayName == "Microsoft Edge WebView2")
         {
             using var process = Process.GetProcessById(session.ProcessId);
@@ -386,41 +394,41 @@ public class AudioLevelsService : AppService
                 return AdjustTeamsNotifications();
             }
         }
-
+        
         if (session.ExecutablePath is not null
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
             return YtmLevel;
         }
-
+        
         if (session.ExecutablePath is not null
             && session.ExecutablePath.Contains("chrome.exe", StringComparison.OrdinalIgnoreCase)
             && !session.ExecutablePath.Contains("beta", StringComparison.OrdinalIgnoreCase))
         {
             return ChromeLevel;
         }
-
+        
         return null;
-
+        
         LevelState AdjustTeamsNotifications()
         {
             return TeamsNotificationsLevel;
         }
-
+        
         LevelState AdjustTeamsCalls()
         {
             return TeamsCallLevel;
         }
     }
-
+    
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
             _coreAudioController?.Dispose();
         }
-
+        
         base.Dispose(disposing);
     }
 }
