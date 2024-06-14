@@ -13,6 +13,7 @@ public partial class ServiceControl
     private const int MaxCharCount = LineCount * 40;
 
     public event EventHandler<RoutedEventArgs>? OnRestartClick;
+    public event EventHandler<RoutedEventArgs>? OnStopClick;
 
     public ServiceControl()
     {
@@ -56,5 +57,10 @@ public partial class ServiceControl
     private void RestartBtnClick(object sender, RoutedEventArgs e)
     {
         OnRestartClick?.Invoke(sender, e);
+    }
+
+    private void StopBtnClick(object sender, RoutedEventArgs e)
+    {
+        OnStopClick?.Invoke(sender, e);
     }
 }

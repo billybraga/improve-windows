@@ -48,6 +48,25 @@ public abstract class AppService : IDisposable
         await RunAsync(_cancellationToken);
     }
 
+    public async Task StopAsync()
+    {
+        if (_cancellationTokenSource != null)
+        {
+            await _cancellationTokenSource.CancelAsync();
+        }
+        
+        if (_task != null)
+        {
+            try
+            {
+                await _task;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+    }
+
     protected abstract Task StartAsync(CancellationToken cancellationToken);
 
     public event EventHandler<TextMessageEventArgs>? OnLog;

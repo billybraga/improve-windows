@@ -34,6 +34,11 @@ public sealed partial class MainWindow : IDisposable
         {
             Task = Service.RestartAsync();
         }
+
+        public void Stop()
+        {
+            Task = Service.StopAsync();
+        }
     }
 
     public MainWindow()
@@ -77,6 +82,11 @@ public sealed partial class MainWindow : IDisposable
             _taskInfos.Add(serviceInfos);
 
             serviceControl.OnRestartClick += (_, _) =>
+            {
+                serviceInfos.Restart();
+            };
+
+            serviceControl.OnStopClick += (_, _) =>
             {
                 serviceInfos.Restart();
             };
