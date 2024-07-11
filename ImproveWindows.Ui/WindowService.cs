@@ -19,6 +19,7 @@ public class WindowService : AppService
     private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
     private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
     private const int HalvedWindowHeight = (FreeScreenHeight / 2) + (WindowPadding * 1);
+    private const int TeamsShareWindowTopPadding = 110;
 
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(2);
 
@@ -123,7 +124,7 @@ public class WindowService : AppService
             if (name.Contains("Improve Windows"))
             {
                 // PutWindowInQuadrant(automationElement, true, false);
-                RestoreWindow(automationElement, false, true, (int) (FullWindowWidth * 0.75), HalvedWindowHeight, WindowPosInsertAfter.None);
+                RestoreWindowToQuadrant(automationElement, false, true, (int) (FullWindowWidth * 0.75), HalvedWindowHeight, WindowPosInsertAfter.None);
                 return;
             }
 
@@ -229,7 +230,14 @@ public class WindowService : AppService
 
             UpdateTeamsMainWindowPosition();
 
-            PutWindowInQuadrant(automationElement, false, true, WindowPosInsertAfter.None);
+            RestoreWindow(
+                automationElement,
+                GetPosX(false),
+                GetPosY(true) - TeamsShareWindowTopPadding,
+                HalvedWindowWidth,
+                HalvedWindowHeight + TeamsShareWindowTopPadding,
+                WindowPosInsertAfter.None
+            );
 
             Once(
                 automationElement,
@@ -337,7 +345,7 @@ public class WindowService : AppService
 
     private void SnapWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
     {
-        RestoreWindow(automationElement, top, left, width, height, insertAfter);
+        RestoreWindowToQuadrant(automationElement, top, left, width, height, insertAfter);
     }
 
     private struct WindowPosInsertAfter
@@ -356,20 +364,21 @@ public class WindowService : AppService
         }
     }
 
-    private void RestoreWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
+    private void RestoreWindowToQuadrant(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
+    {
+        RestoreWindow(automationElement, GetPosX(left), GetPosY(top), width, height, insertAfter);
+    }
+
+    private void RestoreWindow(AutomationElement automationElement, int x, int y, int width, int height, WindowPosInsertAfter insertAfter)
     {
         var currentRectangle = automationElement.Current.BoundingRectangle;
-        var newX = GetPosX(left);
-        var newY = GetPosY(top);
         var name = automationElement.Current.Name;
         if (IsAboutSize(automationElement, width, height)
-            && IsAbout(newX / currentRectangle.X, 1)
-            && IsAbout(newY / currentRectangle.Y, 1))
+            && IsAbout(x / currentRectangle.X, 1)
+            && IsAbout(y / currentRectangle.Y, 1))
         {
-            var horizontalPosition = left ? "left" : "right";
-            var verticalPosition = top ? "top" : "bottom";
             LogInfo(
-                $"Skipping resize to {width}x{height} and position to {verticalPosition} {horizontalPosition} "
+                $"Skipping resize to {width}x{height} and position to {x} {y} "
                 + $"(currently {currentRectangle.Width}x{currentRectangle.Height} at {currentRectangle.X},{currentRectangle.Y}) of {name}"
             );
             return;
@@ -393,8 +402,8 @@ public class WindowService : AppService
         var posResult = PInvoke.SetWindowPos(
             windowHandle,
             insertAfter.Value,
-            newX,
-            newY,
+            x,
+            y,
             width,
             height,
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
