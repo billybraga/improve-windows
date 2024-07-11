@@ -19,14 +19,16 @@ public class WindowService : AppService
     private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
     private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
     private const int HalvedWindowHeight = (FreeScreenHeight / 2) + (WindowPadding * 1);
-    private const int TeamsShareWindowTopPadding = 110;
+    private const int TeamsShareWindowStatusBarPadding = 36;
+    private const int TeamsShareWindowToolbarPadding = 74;
+    private const int TeamsShareWindowBottomPadding = 3;
 
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(2);
 
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeeting;
     private MeetingState _meetingState;
     private bool _meetingWindowShareActive;
-    private readonly HashSet<string> _meetingButtons = new();
+    private readonly Dictionary<string, HashSet<string>> _elementFindingCache = new();
 
     private enum MeetingState
     {
@@ -124,7 +126,14 @@ public class WindowService : AppService
             if (name.Contains("Improve Windows"))
             {
                 // PutWindowInQuadrant(automationElement, true, false);
-                RestoreWindowToQuadrant(automationElement, false, true, (int) (FullWindowWidth * 0.75), HalvedWindowHeight, WindowPosInsertAfter.None);
+                RestoreWindowToQuadrant(
+                    automationElement,
+                    false,
+                    true,
+                    (int) (FullWindowWidth * 0.75),
+                    HalvedWindowHeight,
+                    WindowPosInsertAfter.None
+                );
                 return;
             }
 
@@ -230,14 +239,8 @@ public class WindowService : AppService
 
             UpdateTeamsMainWindowPosition();
 
-            RestoreWindow(
-                automationElement,
-                GetPosX(false),
-                GetPosY(true) - TeamsShareWindowTopPadding,
-                HalvedWindowWidth,
-                HalvedWindowHeight + TeamsShareWindowTopPadding,
-                WindowPosInsertAfter.None
-            );
+            var hasRequestControlButton = FindTakeControlElement(automationElement) != null;
+            PositionTeamsShareWindow(automationElement, hasRequestControlButton);
 
             Once(
                 automationElement,
@@ -251,6 +254,19 @@ public class WindowService : AppService
             );
 
             LogInfo("Teams screen share window moved");
+
+            var hasRequestControlButtonCheckCount = 0;
+            while (!hasRequestControlButton && hasRequestControlButtonCheckCount++ < 5)
+            {
+                await Task.Delay(250, cancellationToken);
+                hasRequestControlButton = FindTakeControlElement(automationElement) != null;
+            }
+
+            if (hasRequestControlButton)
+            {
+                PositionTeamsShareWindow(automationElement, hasRequestControlButton);
+                LogInfo("Teams screen share window moved again after seeing take control");
+            }
         }
         else
         {
@@ -277,6 +293,21 @@ public class WindowService : AppService
             _teamsMeeting = (ManageTeamsMeetingWindowAsync(automationElement, cancellationToken, cancellationTokenSource.Token),
                 cancellationTokenSource);
         }
+    }
+
+    private void PositionTeamsShareWindow(AutomationElement automationElement, bool hasRequestControlButton)
+    {
+        var topPadding = TeamsShareWindowStatusBarPadding
+            + (hasRequestControlButton ? TeamsShareWindowToolbarPadding : 0);
+
+        RestoreWindow(
+            automationElement,
+            GetPosX(false),
+            GetPosY(true) - topPadding + TeamsShareWindowBottomPadding,
+            HalvedWindowWidth,
+            HalvedWindowHeight + topPadding + TeamsShareWindowBottomPadding,
+            WindowPosInsertAfter.None
+        );
     }
 
     private void PutWindowInQuadrant(AutomationElement automationElement, bool left, bool top, WindowPosInsertAfter insertAfter)
@@ -364,7 +395,8 @@ public class WindowService : AppService
         }
     }
 
-    private void RestoreWindowToQuadrant(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
+    private void RestoreWindowToQuadrant(AutomationElement automationElement, bool top, bool left, int width, int height,
+        WindowPosInsertAfter insertAfter)
     {
         RestoreWindow(automationElement, GetPosX(left), GetPosY(top), width, height, insertAfter);
     }
@@ -595,14 +627,34 @@ public class WindowService : AppService
     //     return openContentElements.SingleOrDefault();
     // }
 
-    private AutomationElement? FindPopoutElement(AutomationElement automationElement)
+    private static AutomationElement? FindPopoutElement(AutomationElement automationElement)
     {
-        var openContentElements = automationElement
+        const string controlName = "Pop out";
+        return FindControlElement(automationElement, controlName);
+    }
+
+    private static AutomationElement? FindTakeControlElement(AutomationElement automationElement)
+    {
+        const string controlName = "Take control";
+        return FindControlElement(automationElement, controlName);
+    }
+
+#pragma warning disable IDE0051
+    private AutomationElement? FindControlElementWithLogging(AutomationElement parentAutomationElement, string nameMatch)
+#pragma warning restore IDE0051
+    {
+        if (!_elementFindingCache.TryGetValue(nameMatch, out var cache))
+        {
+            cache = [];
+            _elementFindingCache[nameMatch] = cache;
+        }
+        
+        var openContentElements = parentAutomationElement
             .FindAll(
                 TreeScope.Descendants,
                 new OrCondition(
                     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
-                    new PropertyCondition(AutomationElement.NameProperty, "Pop out"),
+                    new PropertyCondition(AutomationElement.NameProperty, nameMatch),
                     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem)
                 )
             )
@@ -615,19 +667,30 @@ public class WindowService : AppService
             {
                 var currentName = contentElement.Current.Name;
 
-                if (!_meetingButtons.Add(currentName))
+                if (!cache.Add(currentName))
                 {
                     continue;
                 }
 
-                // LogInfo($"{contentElement.Current.ControlType.ProgrammaticName}: {currentName}");
+                LogInfo($"[finding control] {contentElement.Current.ControlType.ProgrammaticName}: {currentName}");
             }
             catch (ElementNotAvailableException)
             {
             }
         }
 
-        return openContentElements.SingleOrDefault(x => x.Current.Name.Contains("Pop out"));
+        return openContentElements.SingleOrDefault(x => x.Current.Name.Contains(nameMatch));
+    }
+
+    private static AutomationElement? FindControlElement(AutomationElement parentAutomationElement, string nameMatch)
+    {
+        return parentAutomationElement
+            .FindAll(
+                TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.NameProperty, nameMatch)
+            )
+            .OfType<AutomationElement>()
+            .FirstOrDefault();
     }
 
     private CancellationTokenSource? _layoutDuringMeetingCts;
