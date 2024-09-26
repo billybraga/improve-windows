@@ -32,6 +32,7 @@ public sealed partial class App : IDisposable
 
         foreach (var otherProcess in otherProcesses)
         {
+            otherProcess.PriorityClass = ProcessPriorityClass.High;
             if (kill || overtake)
             {
                 try

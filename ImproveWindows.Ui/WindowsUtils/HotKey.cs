@@ -58,7 +58,7 @@ internal sealed class HotKey : IDisposable
     public void Unregister()
     {
         if (DictHotKeyToCalBackProc != null
-            && DictHotKeyToCalBackProc.TryGetValue(
+            && DictHotKeyToCalBackProc.Remove(
                 Id,
                 out _
             ))

@@ -64,7 +64,7 @@ public class AudioLevelsService : AppService
     private bool _initialized;
     private IAudioController? _coreAudioController;
     
-    public bool? IsMicMuteState => _teamsCaptureSession?.IsMuted ?? _coreAudioController?.DefaultCaptureDevice.IsMuted;
+    public bool? IsMicMuteState => _teamsCaptureSession?.IsMuted ?? _coreAudioController?.DefaultCaptureDevice?.IsMuted;
     
     private readonly IReadOnlyCollection<LevelState> _levels = new List<LevelState>
     {
