@@ -239,7 +239,7 @@ public class WindowService : AppService
 
             UpdateTeamsMainWindowPosition();
 
-            var hasRequestControlButton = FindTakeControlElement(automationElement) != null;
+            var hasRequestControlButton = true; // FindTakeControlElement(automationElement) != null;
             PositionTeamsShareWindow(automationElement, hasRequestControlButton);
 
             Once(
@@ -548,7 +548,7 @@ public class WindowService : AppService
 
                 if (!_meetingWindowShareActive)
                 {
-                    ClickOnOpenContentInNewWindow(automationElement);
+                    // ClickOnOpenContentInNewWindow(automationElement);
                 }
 
                 await Task.Delay(1000, meetingCancellationToken);
@@ -589,27 +589,27 @@ public class WindowService : AppService
         }
     }
 
-    private void ClickOnOpenContentInNewWindow(AutomationElement automationElement)
-    {
-        try
-        {
-            var openContentElement = FindPopoutElement(automationElement);
-
-            if (openContentElement is null)
-            {
-                return;
-            }
-
-            var message = openContentElement.Click();
-            if (message is not null)
-            {
-                LogInfo(message);
-            }
-        }
-        catch (ElementNotAvailableException)
-        {
-        }
-    }
+    // private void ClickOnOpenContentInNewWindow(AutomationElement automationElement)
+    // {
+    //     try
+    //     {
+    //         var openContentElement = FindPopoutElement(automationElement);
+    //
+    //         if (openContentElement is null)
+    //         {
+    //             return;
+    //         }
+    //
+    //         var message = openContentElement.Click();
+    //         if (message is not null)
+    //         {
+    //             LogInfo(message);
+    //         }
+    //     }
+    //     catch (ElementNotAvailableException)
+    //     {
+    //     }
+    // }
 
     // private AutomationElement? GetPopoutElement(AutomationElement automationElement)
     // {
@@ -627,11 +627,11 @@ public class WindowService : AppService
     //     return openContentElements.SingleOrDefault();
     // }
 
-    private static AutomationElement? FindPopoutElement(AutomationElement automationElement)
-    {
-        const string controlName = "Pop out";
-        return FindControlElement(automationElement, controlName);
-    }
+    // private static AutomationElement? FindPopoutElement(AutomationElement automationElement)
+    // {
+    //     const string controlName = "Pop out";
+    //     return FindControlElement(automationElement, controlName);
+    // }
 
     private static AutomationElement? FindTakeControlElement(AutomationElement automationElement)
     {
