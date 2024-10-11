@@ -11,6 +11,7 @@ public abstract class AppService : IDisposable
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        SetStatus("Starting");
         try
         {
             _cancellationToken = cancellationToken;
@@ -29,27 +30,14 @@ public abstract class AppService : IDisposable
 
     public async Task RestartAsync()
     {
-        if (_cancellationTokenSource != null)
-        {
-            await _cancellationTokenSource.CancelAsync();
-        }
-        
-        if (_task != null)
-        {
-            try
-            {
-                await _task;
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-
+        await StopAsync();
         await RunAsync(_cancellationToken);
     }
 
     public async Task StopAsync()
     {
+        LogInfo("Stopping");
+        
         if (_cancellationTokenSource != null)
         {
             await _cancellationTokenSource.CancelAsync();
@@ -65,6 +53,8 @@ public abstract class AppService : IDisposable
             {
             }
         }
+        
+        LogInfo("Stopped");
     }
 
     protected abstract Task StartAsync(CancellationToken cancellationToken);

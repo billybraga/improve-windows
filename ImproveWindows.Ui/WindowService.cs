@@ -4,7 +4,6 @@ using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
 using ImproveWindows.Core.Services;
-using ImproveWindows.Ui.Extensions;
 
 namespace ImproveWindows.Ui;
 
@@ -89,6 +88,8 @@ public class WindowService : AppService
                 cancellationToken
             );
 
+            SetStatus("Started");
+            
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(1000, cancellationToken);
