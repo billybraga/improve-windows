@@ -88,7 +88,7 @@ public sealed partial class MainWindow : IDisposable
 
             serviceControl.OnStopClick += (_, _) =>
             {
-                serviceInfos.Restart();
+                serviceInfos.Stop();
             };
             
             MainGrid.ColumnDefinitions.Add(new ColumnDefinition

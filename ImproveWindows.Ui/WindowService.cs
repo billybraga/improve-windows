@@ -255,18 +255,18 @@ public class WindowService : AppService
 
             LogInfo("Teams screen share window moved");
 
-            var hasRequestControlButtonCheckCount = 0;
-            while (!hasRequestControlButton && hasRequestControlButtonCheckCount++ < 5)
-            {
-                await Task.Delay(250, cancellationToken);
-                hasRequestControlButton = FindTakeControlElement(automationElement) != null;
-            }
-
-            if (hasRequestControlButton)
-            {
-                PositionTeamsShareWindow(automationElement, hasRequestControlButton);
-                LogInfo("Teams screen share window moved again after seeing take control");
-            }
+            // var hasRequestControlButtonCheckCount = 0;
+            // while (!hasRequestControlButton && hasRequestControlButtonCheckCount++ < 5)
+            // {
+            //     await Task.Delay(250, cancellationToken);
+            //     hasRequestControlButton = FindTakeControlElement(automationElement) != null;
+            // }
+            //
+            // if (hasRequestControlButton)
+            // {
+            //     PositionTeamsShareWindow(automationElement, hasRequestControlButton);
+            //     LogInfo("Teams screen share window moved again after seeing take control");
+            // }
         }
         else
         {
