@@ -7,10 +7,10 @@ public class HdmiAudioService : AppService
 {
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
-        AudioControl.Instance.Start();
-        SetStatus("Started");
         try
         {
+            await LoopUntilStartedAsync(cancellationToken);
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(1000, cancellationToken);
@@ -21,6 +21,24 @@ public class HdmiAudioService : AppService
             if (AudioControl.Instance.IsRunning)
             {
                 AudioControl.Instance.Stop();
+            }
+        }
+    }
+
+    private async Task LoopUntilStartedAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                AudioControl.Instance.Start();
+                SetStatus("Started");
+                return;
+            }
+            catch (Exception)
+            {
+                SetStatus("Retrying");
+                await Task.Delay(5000, cancellationToken);
             }
         }
     }

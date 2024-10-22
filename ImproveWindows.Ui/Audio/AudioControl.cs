@@ -118,7 +118,7 @@ internal sealed class AudioControl
     private static List<ILoopAudioPlayer> PlaySoundAsync(Stream sound)
     {
         var deviceIds = new HashSet<int>();
-        var deviceName = "Audio Driver for Dis";
+        const string deviceName = "Audio Driver for Dis";
         for (var deviceId = -1; deviceId < WaveOut.DeviceCount; deviceId++)
         {
             var capabilities = WaveOut.GetCapabilities(deviceId);
