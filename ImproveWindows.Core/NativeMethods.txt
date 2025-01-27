@@ -3,6 +3,7 @@ WlanConnect
 WlanDeleteProfile
 WlanDisconnect
 WlanEnumInterfaces
+WlanGetInterfaceCapability
 WlanFreeMemory
 WlanOpenHandle
 WlanQueryAutoConfigParameter
@@ -30,3 +31,5 @@ CloseHandle
 ReadProcessMemory
 OpenProcess
 NtQueryInformationProcess
+WLAN_INTERFACE_STATE
+WLAN_RADIO_STATE

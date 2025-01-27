@@ -1,13 +1,13 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows.Automation;
+using ImproveWindows.Core.Services;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
-using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Ui;
 
-public class WindowService : AppService
+internal sealed class WindowService : AppService
 {
     private const int ScreenHeight = 2160;
     private const int ScreenWidth = 3840;
@@ -27,7 +27,7 @@ public class WindowService : AppService
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeeting;
     private MeetingState _meetingState;
     private bool _meetingWindowShareActive;
-    private readonly Dictionary<string, HashSet<string>> _elementFindingCache = new();
+    private readonly Dictionary<string, HashSet<string>> _elementFindingCache = [];
 
     private enum MeetingState
     {
@@ -89,7 +89,7 @@ public class WindowService : AppService
             );
 
             SetStatus("Started");
-            
+
             while (!cancellationToken.IsCancellationRequested)
             {
                 await Task.Delay(1000, cancellationToken);
@@ -190,8 +190,9 @@ public class WindowService : AppService
         {
             LogInfo($"Teams thumbnail opened ({size.Width}x{size.Height})");
 
-            PInvoke.SetWindowPos(
+            _ = PInvoke.SetWindowPos(
                 new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+
                 // Keep the thumbnail top-most
                 WindowPosInsertAfter.TopMost.Value,
                 800,
@@ -206,7 +207,7 @@ public class WindowService : AppService
                 WindowPattern.WindowClosedEvent,
                 () =>
                 {
-                    Task.Run(
+                    _ = Task.Run(
                         async () =>
                         {
                             LogInfo("Thumbnail closed");
@@ -590,56 +591,6 @@ public class WindowService : AppService
         }
     }
 
-    // private void ClickOnOpenContentInNewWindow(AutomationElement automationElement)
-    // {
-    //     try
-    //     {
-    //         var openContentElement = FindPopoutElement(automationElement);
-    //
-    //         if (openContentElement is null)
-    //         {
-    //             return;
-    //         }
-    //
-    //         var message = openContentElement.Click();
-    //         if (message is not null)
-    //         {
-    //             LogInfo(message);
-    //         }
-    //     }
-    //     catch (ElementNotAvailableException)
-    //     {
-    //     }
-    // }
-
-    // private AutomationElement? GetPopoutElement(AutomationElement automationElement)
-    // {
-    //     var openContentElements = automationElement
-    //         .FindAll(
-    //             TreeScope.Descendants,
-    //             new AndCondition(
-    //                 new PropertyCondition(AutomationElement.NameProperty, "Pop out"),
-    //                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button)
-    //             )
-    //         )
-    //         .OfType<AutomationElement>()
-    //         .ToArray();
-    //     
-    //     return openContentElements.SingleOrDefault();
-    // }
-
-    // private static AutomationElement? FindPopoutElement(AutomationElement automationElement)
-    // {
-    //     const string controlName = "Pop out";
-    //     return FindControlElement(automationElement, controlName);
-    // }
-
-    private static AutomationElement? FindTakeControlElement(AutomationElement automationElement)
-    {
-        const string controlName = "Take control";
-        return FindControlElement(automationElement, controlName);
-    }
-
 #pragma warning disable IDE0051
     private AutomationElement? FindControlElementWithLogging(AutomationElement parentAutomationElement, string nameMatch)
 #pragma warning restore IDE0051
@@ -649,7 +600,7 @@ public class WindowService : AppService
             cache = [];
             _elementFindingCache[nameMatch] = cache;
         }
-        
+
         var openContentElements = parentAutomationElement
             .FindAll(
                 TreeScope.Descendants,
@@ -681,17 +632,6 @@ public class WindowService : AppService
         }
 
         return openContentElements.SingleOrDefault(x => x.Current.Name.Contains(nameMatch));
-    }
-
-    private static AutomationElement? FindControlElement(AutomationElement parentAutomationElement, string nameMatch)
-    {
-        return parentAutomationElement
-            .FindAll(
-                TreeScope.Descendants,
-                new PropertyCondition(AutomationElement.NameProperty, nameMatch)
-            )
-            .OfType<AutomationElement>()
-            .FirstOrDefault();
     }
 
     private CancellationTokenSource? _layoutDuringMeetingCts;
@@ -728,7 +668,7 @@ public class WindowService : AppService
             {
                 var windowPrevs = new Dictionary<int, HWND?>();
                 HWND? prev = null;
-                PInvoke.EnumWindows(
+                _ = PInvoke.EnumWindows(
                     (hwnd, _) =>
                     {
                         windowPrevs[hwnd.Value.ToInt32()] = prev;

@@ -3,7 +3,7 @@ using System.Windows.Media;
 
 namespace ImproveWindows.Ui;
 
-public partial class ServiceControl
+internal partial class ServiceControl
 {
 #if DEBUG
     private const int LineCount = 300;
@@ -36,7 +36,7 @@ public partial class ServiceControl
             var indexOfNewLine = Logs.Text.IndexOf('\n', MaxCharCount);
             if (indexOfNewLine > 0)
             {
-                return Logs.Text.Substring(0, indexOfNewLine);
+                return Logs.Text[..indexOfNewLine];
             }
         }
 
@@ -45,7 +45,7 @@ public partial class ServiceControl
 
     public void SetStatus(string status, bool isError)
     {
-        Dispatcher.InvokeAsync(
+        _ = Dispatcher.InvokeAsync(
             () =>
             {
                 Status.Content = status;

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Core;
@@ -29,7 +29,7 @@ public class MemoryService : AppService
                 shouldGc = true;
                 shouldAlert = false;
             }
-            
+
             if (shouldGc)
             {
                 LogInfo("Running GC");

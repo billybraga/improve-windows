@@ -1,6 +1,6 @@
-﻿namespace ImproveWindows.Core.Wifi.Wlan;
+namespace ImproveWindows.Core.Network.Wlan;
 
-public sealed class WlanHostedNetwork
+internal sealed class WlanHostedNetwork
 {
     // FIELDS ==================================================================
 
@@ -23,7 +23,7 @@ public sealed class WlanHostedNetwork
 
     private void InitSettings()
     {
-        WifiUtil.ThrowIfError(NativeMethods.WlanHostedNetworkInitSettings(_client.clientHandle, out _, IntPtr.Zero));
+        NetUtils.ThrowIfError(NativeMethods.WlanHostedNetworkInitSettings(_client.clientHandle, out _, IntPtr.Zero));
     }
 
     // INTERNALS ===============================================================

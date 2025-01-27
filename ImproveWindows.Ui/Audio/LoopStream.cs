@@ -6,7 +6,7 @@ namespace ImproveWindows.Ui.Audio;
 /// Stream for looping playback
 /// Credit: http://mark-dot-net.blogspot.sg/2009/10/looped-playback-in-net-with-naudio.html
 /// </summary>
-public class LoopStream : WaveStream
+internal sealed class LoopStream : WaveStream
 {
     private readonly WaveStream _sourceStream;
 

@@ -1,6 +1,6 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
-namespace ImproveWindows.Core.Wifi;
+namespace ImproveWindows.Core.Network;
 
 [StructLayout(LayoutKind.Sequential)]
 public struct Dot11MacAddress

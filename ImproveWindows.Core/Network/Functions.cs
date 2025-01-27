@@ -1,6 +1,6 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
-namespace ImproveWindows.Core.Wifi;
+namespace ImproveWindows.Core.Network;
 
 internal static class NativeMethods
 {
@@ -9,7 +9,7 @@ internal static class NativeMethods
         [In] IntPtr hClientHandle,
         [In, Out] IntPtr pReserved
     );
-    
+
     [DllImport("wlanapi.dll")]
     internal static extern int WlanEnumInterfaces(
             [In] IntPtr hClientHandle,
@@ -49,7 +49,7 @@ internal static class NativeMethods
         [In] bool bRegister,
         IntPtr pvReserved
     );
-    
+
     [DllImport("wlanapi.dll")]
     internal static extern int WlanHostedNetworkInitSettings(
         IntPtr hClientHandle,

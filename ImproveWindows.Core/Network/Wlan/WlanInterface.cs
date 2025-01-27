@@ -1,10 +1,11 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
+using Windows.Win32.NetworkManagement.WiFi;
 
-namespace ImproveWindows.Core.Wifi.Wlan;
+namespace ImproveWindows.Core.Network.Wlan;
 
-public sealed class WlanInterface
+internal sealed class WlanInterface
 {
     // FIELDS =================================================================
 
@@ -26,10 +27,42 @@ public sealed class WlanInterface
     {
         get
         {
-            WifiUtil.ThrowIfError(NativeMethods.WlanQueryInterface(_client.clientHandle, Guid, WlanIntfOpcode.CurrentConnection, IntPtr.Zero, out _, out var valuePtr, out _));
+            NetUtils.ThrowIfError(NativeMethods.WlanQueryInterface(_client.clientHandle, Guid, WlanIntfOpcode.CurrentConnection, IntPtr.Zero, out _, out var valuePtr, out _));
             try
             {
-                return (WlanConnectionAttributes)Marshal.PtrToStructure(valuePtr, typeof(WlanConnectionAttributes))!;
+                return Marshal.PtrToStructure<WlanConnectionAttributes>(valuePtr)!;
+            }
+            finally
+            {
+                _ = NativeMethods.WlanFreeMemory(valuePtr);
+            }
+        }
+    }
+
+    // public WLAN_RADIO_STATE Cap
+    // {
+    //     get
+    //     {
+    //         NetUtils.ThrowIfError(NativeMethods.WlanGetInterfaceCapability(_client.clientHandle, Guid, WlanIntfOpcode.RadioState, IntPtr.Zero, out _, out var valuePtr, out _));
+    //         try
+    //         {
+    //             return Marshal.PtrToStructure<WLAN_RADIO_STATE>(valuePtr)!;
+    //         }
+    //         finally
+    //         {
+    //             _ = NativeMethods.WlanFreeMemory(valuePtr);
+    //         }
+    //     }
+    // }
+
+    public WLAN_RADIO_STATE RadioState
+    {
+        get
+        {
+            NetUtils.ThrowIfError(NativeMethods.WlanQueryInterface(_client.clientHandle, Guid, WlanIntfOpcode.RadioState, IntPtr.Zero, out _, out var valuePtr, out _));
+            try
+            {
+                return Marshal.PtrToStructure<WLAN_RADIO_STATE>(valuePtr)!;
             }
             finally
             {

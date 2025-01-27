@@ -3,27 +3,27 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
-using Windows.Win32;
-using Windows.Win32.Foundation;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
+using Windows.Win32;
+using Windows.Win32.Foundation;
 
 namespace ImproveWindows.Ui;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml
 /// </summary>
-public sealed partial class MainWindow : IDisposable
+internal sealed partial class MainWindow : IDisposable
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly List<ServiceInfos> _taskInfos = new();
+    private readonly List<ServiceInfos> _taskInfos = [];
     private readonly WindowInteropHelper _windowInteropHelper;
 
     private sealed record ServiceInfos
     {
         public Task Task { get; private set; }
         public AppService Service { get; }
-        
+
         public ServiceInfos(Task task, AppService service)
         {
             Task = task;
@@ -44,9 +44,9 @@ public sealed partial class MainWindow : IDisposable
     public MainWindow()
     {
         InitializeComponent();
-        
+
         _windowInteropHelper = new WindowInteropHelper(this);
-        
+
 #pragma warning disable CA2000
         var audioLevels = new AudioLevelsService();
         // StartService("Vpn", new VpnService());
@@ -74,7 +74,7 @@ public sealed partial class MainWindow : IDisposable
                 serviceControl.SetStatus(args.Status, args.IsError);
                 if (args is { IsError: true, WasAlreadyError: false })
                 {
-                    PInvoke.FlashWindow(new HWND(_windowInteropHelper.Handle), true);
+                    _ = PInvoke.FlashWindow(new HWND(_windowInteropHelper.Handle), true);
                 }
             };
 
@@ -90,14 +90,16 @@ public sealed partial class MainWindow : IDisposable
             {
                 serviceInfos.Stop();
             };
-            
-            MainGrid.ColumnDefinitions.Add(new ColumnDefinition
-            {
-                Width = new GridLength(1, GridUnitType.Star),
-            });
-            
-            MainGrid.Children.Add(serviceControl);
-            
+
+            MainGrid.ColumnDefinitions.Add(
+                new ColumnDefinition
+                {
+                    Width = new GridLength(1, GridUnitType.Star),
+                }
+            );
+
+            _ = MainGrid.Children.Add(serviceControl);
+
             serviceControl.SetValue(Grid.ColumnProperty, MainGrid.Children.Count - 1);
         }
     }
@@ -105,7 +107,7 @@ public sealed partial class MainWindow : IDisposable
     protected override void OnClosing(CancelEventArgs e)
     {
         _cancellationTokenSource.Cancel();
-        Dispatcher.Invoke(
+        _ = Dispatcher.Invoke(
             DispatcherPriority.Background,
             async () =>
             {

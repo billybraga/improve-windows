@@ -1,4 +1,4 @@
-﻿using System.Windows.Interop;
+using System.Windows.Interop;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
@@ -16,7 +16,7 @@ internal sealed class HotKey : IDisposable
     private readonly VIRTUAL_KEY _key;
     private readonly HOT_KEY_MODIFIERS _keyModifiers;
     private readonly Action<HotKey>? _action;
-    
+
     private int Id { get; set; }
 
     public HotKey(VIRTUAL_KEY k, HOT_KEY_MODIFIERS keyModifiers, Action<HotKey> action, bool register = true)
@@ -79,7 +79,7 @@ internal sealed class HotKey : IDisposable
             {
                 if (DictHotKeyToCalBackProc != null
                     && DictHotKeyToCalBackProc.TryGetValue(
-                        (int)msg.wParam,
+                        (int) msg.wParam,
                         out var hotKey
                     ))
                 {

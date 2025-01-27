@@ -1,16 +1,12 @@
-﻿using System.Text.RegularExpressions;
-using System.Windows.Automation;
+﻿// using System.Text.RegularExpressions;
+// using System.Windows.Automation;
+// using ImproveWindows.Ui.Extensions;
 using ImproveWindows.Core.Services;
-using ImproveWindows.Ui.Extensions;
 
 namespace ImproveWindows.Ui;
 
-public partial class VpnService : AppService
+internal partial class VpnService : AppService
 {
-    // [GeneratedRegex("Mail.+Outlook")]
-    [GeneratedRegex("Settings")]
-    private static partial Regex OutlookMailRegex();
-
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         // var outlook = AutomationElement

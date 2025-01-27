@@ -1,8 +1,8 @@
-﻿using System.Windows.Automation;
+using System.Windows.Automation;
 
 namespace ImproveWindows.Ui.Extensions;
 
-public static class UiExtensions
+internal static class UiExtensions
 {
     public static string? Click(this AutomationElement menuItem)
     {
@@ -12,18 +12,18 @@ public static class UiExtensions
             {
                 throw new InvalidOperationException($"{pattern} is not {nameof(InvokePattern)}");
             }
-            
+
             invokePattern.Invoke();
             return null;
         }
-        
+
         if (menuItem.TryGetCurrentPattern(SelectionItemPattern.Pattern, out pattern))
         {
             if (pattern is not SelectionItemPattern selectionPattern)
             {
                 throw new InvalidOperationException($"{pattern} is not {nameof(SelectionItemPattern)}");
             }
-            
+
             selectionPattern.Select();
             return null;
         }

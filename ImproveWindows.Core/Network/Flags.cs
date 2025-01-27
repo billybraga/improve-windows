@@ -1,4 +1,4 @@
-﻿namespace ImproveWindows.Core.Wifi;
+namespace ImproveWindows.Core.Network;
 
 [Flags]
 public enum WlanNotificationSource : uint

@@ -34,7 +34,7 @@ public class MovingAverage16Tests
         {
             movingAverage16.Add(i);
             var average = movingAverage16.ToString();
-            average
+            _ = average
                 .Should()
                 .Be(expected[i], $"was not the right value it i={i}");
         }

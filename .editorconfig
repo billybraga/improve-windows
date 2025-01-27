@@ -581,5 +581,15 @@ resharper_csharp_wrap_before_binary_opsign = true
 resharper_csharp_wrap_before_invocation_rpar = true
 resharper_wrap_chained_binary_expressions = chop_if_long
 
+dotnet_diagnostic.IDE0046.severity = none
+dotnet_diagnostic.IDE0290.severity = none
+
+[{ImproveWindows.Tests/**/*.cs,ImproveWindows.Tests/*.cs}]
+dotnet_diagnostic.CA1515.severity = none
+
+[**/NativeMethods.cs]
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.IDE0250.severity = none
+
 [{*.json,*.yml,*.yaml}]
 indent_size = 2

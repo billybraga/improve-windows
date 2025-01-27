@@ -1,9 +1,9 @@
-﻿using ImproveWindows.Core.Services;
+using ImproveWindows.Core.Services;
 using ImproveWindows.Ui.Audio;
 
 namespace ImproveWindows.Ui;
 
-public class HdmiAudioService : AppService
+internal class HdmiAudioService : AppService
 {
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {

@@ -1,4 +1,4 @@
-﻿namespace ImproveWindows.Core.Services;
+namespace ImproveWindows.Core.Services;
 
 public abstract class AppService : IDisposable
 {
@@ -37,12 +37,12 @@ public abstract class AppService : IDisposable
     public async Task StopAsync()
     {
         LogInfo("Stopping");
-        
+
         if (_cancellationTokenSource != null)
         {
             await _cancellationTokenSource.CancelAsync();
         }
-        
+
         if (_task != null)
         {
             try
@@ -53,7 +53,7 @@ public abstract class AppService : IDisposable
             {
             }
         }
-        
+
         LogInfo("Stopped");
     }
 

@@ -91,7 +91,7 @@ internal sealed class AudioControl
     public static AudioControl Instance => InstanceLazy.Value;
 
     public bool IsRunning { get; private set; }
-    private List<ILoopAudioPlayer> _audioPlayers = new();
+    private List<ILoopAudioPlayer> _audioPlayers = [];
     private Stream? _sound;
 
     /// <summary>
@@ -124,7 +124,7 @@ internal sealed class AudioControl
             var capabilities = WaveOut.GetCapabilities(deviceId);
             if (capabilities.ProductName.Contains(deviceName, StringComparison.OrdinalIgnoreCase))
             {
-                deviceIds.Add(deviceId);
+                _ = deviceIds.Add(deviceId);
             }
         }
 

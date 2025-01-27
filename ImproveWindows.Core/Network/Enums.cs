@@ -1,4 +1,4 @@
-﻿namespace ImproveWindows.Core.Wifi;
+namespace ImproveWindows.Core.Network;
 
 /// <summary>
 /// The DOT11_AUTH_ALGORITHM enumerated type defines a wireless LAN authentication algorithm.

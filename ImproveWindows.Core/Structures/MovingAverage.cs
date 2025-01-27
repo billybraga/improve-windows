@@ -1,4 +1,6 @@
-﻿namespace ImproveWindows.Core.Structures;
+using System.Globalization;
+
+namespace ImproveWindows.Core.Structures;
 
 public class MovingAverage16
 {
@@ -15,9 +17,23 @@ public class MovingAverage16
 
     public override string ToString()
     {
+        return string.Join(", ", ToValues().Select(x => x.Value.ToString(NumberFormatInfo.InvariantInfo)));
+    }
+
+    public string ToStringWithTemplate()
+    {
+        return string.Join(", ", ToValues().Select(x => $"{x.Name}: {x.Value}"));
+    }
+
+    private (string Name, int Value)[] ToValues()
+    {
         var values = _isFull ? _values : _values.Take(_currentPos + 1).ToArray();
 
-        double[] keys = [values.Min(), values.Sum() / (double) values.Length, values.Max()];
-        return string.Join(", ", keys.Select(x => (int) Math.Round(x)));
+        return
+        [
+            ("min", values.Min()),
+            ("avg", (int) Math.Round(values.Sum() / (double) values.Length)),
+            ("max", values.Max()),
+        ];
     }
 }

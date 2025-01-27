@@ -1,16 +1,16 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace ImproveWindows.Core.Wifi.Wlan;
+namespace ImproveWindows.Core.Network.Wlan;
 
-public sealed class WlanClient : IDisposable
+internal sealed class WlanClient : IDisposable
 {
     // FIELDS =================================================================
 
     internal IntPtr clientHandle;
 
-    private readonly Dictionary<Guid, WlanInterface> _interfaceMap = new();
-    private volatile WlanInterface[] _interfaceList = Array.Empty<WlanInterface>();
+    private readonly Dictionary<Guid, WlanInterface> _interfaceMap = [];
+    private volatile WlanInterface[] _interfaceList = [];
 
     private WlanHostedNetwork? _hostedNetwork;
     private readonly object _hostedNetworkLock = new();
@@ -72,24 +72,19 @@ public sealed class WlanClient : IDisposable
 
     private void ReloadInterfaces()
     {
-        WifiUtil.ThrowIfError(
+        NetUtils.ThrowIfError(
             NativeMethods.WlanEnumInterfaces(clientHandle, IntPtr.Zero, out var listPtr)
         );
         try
         {
-            var list = (WlanInterfaceInfoList) (
-                Marshal.PtrToStructure(listPtr, typeof(WlanInterfaceInfoList))
-                ?? throw new InvalidOperationException("PtrToStructure returned null")
-            );
+            var list = Marshal.PtrToStructure<WlanInterfaceInfoList>(listPtr);
             var numberOfItems = list.NumberOfItems;
-            var listIterator = listPtr.ToInt64() + Marshal.OffsetOf(typeof(WlanInterfaceInfoList), "InterfaceInfo").ToInt64();
+            var listIterator = listPtr.ToInt64() + Marshal.OffsetOf<WlanInterfaceInfoList>("InterfaceInfo").ToInt64();
             var interfaces = new WlanInterface[numberOfItems];
             var currentIfaceGuids = new List<Guid>();
             for (var i = 0; i < numberOfItems; i++)
             {
-                var info =
-                    (WlanInterfaceInfo) (Marshal.PtrToStructure(new IntPtr(listIterator), typeof(WlanInterfaceInfo))
-                        ?? throw new InvalidOperationException("PtrToStructure returned null"));
+                var info = Marshal.PtrToStructure<WlanInterfaceInfo>(new IntPtr(listIterator));
                 listIterator += Marshal.SizeOf(info);
                 currentIfaceGuids.Add(info.Guid);
                 if (!_interfaceMap.TryGetValue(info.Guid, out var wlanInterface))
@@ -112,28 +107,28 @@ public sealed class WlanClient : IDisposable
             while (deadIfacesGuids.Count != 0)
             {
                 var deadIfaceGuid = deadIfacesGuids.Dequeue();
-                _interfaceMap.Remove(deadIfaceGuid);
+                _ = _interfaceMap.Remove(deadIfaceGuid);
             }
 
             _interfaceList = interfaces;
         }
         finally
         {
-            NativeMethods.WlanFreeMemory(listPtr);
+            _ = NativeMethods.WlanFreeMemory(listPtr);
         }
     }
 
     private WlanClient()
     {
-        var clientVersionDword = WifiUtil.VersionToDword(ClientVersion);
-        WifiUtil.ThrowIfError(NativeMethods.WlanOpenHandle(clientVersionDword, IntPtr.Zero, out _, out clientHandle));
+        var clientVersionDword = NetUtils.VersionToDword(ClientVersion);
+        NetUtils.ThrowIfError(NativeMethods.WlanOpenHandle(clientVersionDword, IntPtr.Zero, out _, out clientHandle));
     }
 
     ~WlanClient()
     {
         if (clientHandle != IntPtr.Zero)
         {
-            NativeMethods.WlanCloseHandle(clientHandle, IntPtr.Zero);
+            _ = NativeMethods.WlanCloseHandle(clientHandle, IntPtr.Zero);
             clientHandle = IntPtr.Zero;
         }
     }
@@ -142,7 +137,7 @@ public sealed class WlanClient : IDisposable
     {
         if (clientHandle != IntPtr.Zero)
         {
-            NativeMethods.WlanCloseHandle(clientHandle, IntPtr.Zero);
+            _ = NativeMethods.WlanCloseHandle(clientHandle, IntPtr.Zero);
             clientHandle = IntPtr.Zero;
         }
     }
@@ -161,7 +156,7 @@ public sealed class WlanClient : IDisposable
 
         if (client.HostedNetwork != null)
         {
-            WifiUtil.ThrowIfError(NativeMethods.WlanRegisterVirtualStationNotification(client.clientHandle, true, IntPtr.Zero));
+            NetUtils.ThrowIfError(NativeMethods.WlanRegisterVirtualStationNotification(client.clientHandle, true, IntPtr.Zero));
         }
 
         return client;

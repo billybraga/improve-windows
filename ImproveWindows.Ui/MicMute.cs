@@ -1,11 +1,11 @@
-﻿using Windows.Win32.UI.Input.KeyboardAndMouse;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Ui.WindowsUtils;
+using Windows.Win32.UI.Input.KeyboardAndMouse;
 
 namespace ImproveWindows.Ui;
 
-public sealed class MicMute : AppService
+internal sealed class MicMute : AppService
 {
     private readonly AudioLevelsService _audioLevelsService;
 
@@ -45,9 +45,9 @@ public sealed class MicMute : AppService
                     }
 
 
-                    Console.Beep(isMuted.Value ? 600 : 1000, 100);
+                    Console.Beep(isMuted.Value ? 600 : 1000, 33);
                     _audioLevelsService.ChangeMicMuteState();
-                    Console.Beep(isMuted.Value ? 1000 : 600, 200);
+                    Console.Beep(isMuted.Value ? 1000 : 600, 66);
                 }
                 finally
                 {
@@ -55,7 +55,7 @@ public sealed class MicMute : AppService
                 }
             }
         );
-        
+
         SetStatus();
         while (!cancellationToken.IsCancellationRequested)
         {

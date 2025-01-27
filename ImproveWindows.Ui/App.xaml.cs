@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Windows;
 using Microsoft.Extensions.Logging;
 
@@ -7,7 +7,7 @@ namespace ImproveWindows.Ui;
 /// <summary>
 /// Interaction logic for App.xaml
 /// </summary>
-public sealed partial class App : IDisposable
+internal sealed partial class App : IDisposable
 {
     private readonly ILoggerFactory _loggerFactory = LoggerFactory.Create(builder => builder.AddConsole().AddEventLog());
     private readonly ILogger _logger;
@@ -15,7 +15,7 @@ public sealed partial class App : IDisposable
     public App()
     {
         _logger = _loggerFactory.CreateLogger<App>();
-        
+
         _logger.LogInformation("Starting");
 
         var otherProcesses = GetOtherProcess();

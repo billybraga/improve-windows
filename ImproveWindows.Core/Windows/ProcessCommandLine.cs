@@ -14,7 +14,7 @@ public static class ProcessCommandLineExtensions
         try
         {
             if (NativeMethods.ReadProcessMemory(
-                    hProcess, lpBaseAddress, mem, (uint)structSize, out var len) &&
+                    hProcess, lpBaseAddress, mem, (uint) structSize, out var len) &&
                 (len == structSize))
             {
                 val = Marshal.PtrToStructure<TStruct>(mem);
@@ -33,8 +33,8 @@ public static class ProcessCommandLineExtensions
     {
         var hProcess = NativeMethods.OpenProcess(
             NativeMethods.OpenProcessDesiredAccessFlags.ProcessQueryInformation |
-            NativeMethods.OpenProcessDesiredAccessFlags.ProcessVmRead, false, (uint)process.Id);
-        
+            NativeMethods.OpenProcessDesiredAccessFlags.ProcessVmRead, false, (uint) process.Id);
+
         if (hProcess == IntPtr.Zero)
         {
             // couldn't open process for VM read
@@ -49,7 +49,7 @@ public static class ProcessCommandLineExtensions
             {
                 var ret = NativeMethods.NtQueryInformationProcess(
                     hProcess, NativeMethods.ProcessBasicInformationValue, memPbi,
-                    (uint)sizePbi, out _);
+                    (uint) sizePbi, out _);
 
                 if (0 != ret)
                 {
@@ -104,7 +104,7 @@ public static class ProcessCommandLineExtensions
         }
         finally
         {
-            NativeMethods.CloseHandle(hProcess);
+            _ = NativeMethods.CloseHandle(hProcess);
         }
     }
 }

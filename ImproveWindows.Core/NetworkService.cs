@@ -1,10 +1,9 @@
-﻿using System.ComponentModel;
 using System.Net;
 using System.Net.NetworkInformation;
+using ImproveWindows.Core.Network;
+using ImproveWindows.Core.Network.Wlan;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Core.Structures;
-using ImproveWindows.Core.Wifi;
-using ImproveWindows.Core.Wifi.Wlan;
 
 namespace ImproveWindows.Core;
 
@@ -14,7 +13,7 @@ public sealed class NetworkService : AppService
     private readonly Ping _googlePinger = new();
     private readonly Ping _cfPinger = new();
     private readonly MovingAverage16 _movingAverage = new();
-    private static readonly IPAddress CloudFlareDnsIpAddress = new(new byte[] { 1, 1, 1, 1 });
+    private static readonly IPAddress CloudFlareDnsIpAddress = new([1, 1, 1, 1]);
 
     private enum NetState
     {
@@ -49,11 +48,11 @@ public sealed class NetworkService : AppService
 
             SetStatusKey(
                 $"{pingState}, {netState}",
-                $"{pingState}, ({_movingAverage})ms, {netState}",
+                $"{pingState}, ({_movingAverage.ToStringWithTemplate()})ms, {netState}",
                 pingState != PingState.Ok || netState is not (NetState.WifiOk or NetState.EthernetOk)
             );
 
-            await Task.Delay(15000, cancellationToken);
+            await Task.Delay(TimeSpan.FromMinutes(15), cancellationToken);
         }
 
         return;
@@ -61,31 +60,17 @@ public sealed class NetworkService : AppService
         void CheckNetwork()
         {
             NetState newState;
-            var lanInterfaces = GetLanInterfaces();
+            var lanInterfaces = NetUtils.GetLanInterfaces(LogError);
             if (lanInterfaces.Count != 0)
             {
                 newState = NetState.EthernetOk;
             }
             else
             {
-                var wlanInterfaces = GetWlanInterfaces();
-
-                if (wlanInterfaces.Count != 1)
+                if (!NetUtils.IsWlanInterfaceValid(wlanClient, LogError, LogInfo))
                 {
                     netState = NetState.WifiBad;
                     Console.Beep();
-                    var names = string.Join(", ", wlanInterfaces.Select(x => x.Name));
-                    LogInfo($"Got {wlanInterfaces.Count} Wi-Fi interfaces: {names}");
-                    return;
-                }
-
-                var wlanInterface = wlanInterfaces.Single();
-                var dot11PhyType = GetDot11PhyType(wlanInterface);
-                if (dot11PhyType != Dot11PhyType.He)
-                {
-                    netState = NetState.WifiBad;
-                    Console.Beep();
-                    LogInfo($"{wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
                     return;
                 }
 
@@ -127,8 +112,8 @@ public sealed class NetworkService : AppService
             {
                 var results = await Task.WhenAll(_googlePinger.SendPingAsync("google.com"), _cfPinger.SendPingAsync(CloudFlareDnsIpAddress));
                 var ipStatus = results.Min(x => x.Status);
-                var roundTripTime = (int)results.Min(x => x.RoundtripTime);
-                _movingAverage.Add((int)Math.Round((double)roundTripTime));
+                var roundTripTime = (int) results.Min(x => x.RoundtripTime);
+                _movingAverage.Add((int) Math.Round((double) roundTripTime));
                 if (ipStatus is not IPStatus.Success)
                 {
                     var statuses = string.Join(", ", results.Select(x => $"{x.Address}: {x.Status}ms"));
@@ -138,7 +123,8 @@ public sealed class NetworkService : AppService
                 if (roundTripTime > HighestGoodPing)
                 {
                     var times = string.Join(", ", results.Select(x => $"{x.Address}: {x.RoundtripTime}ms"));
-                    return (PingState.Slow, $"Slow ping: {times}");
+                    var traceRoute = await NetUtils.GetTraceRouteAsync("google.com", cancellationToken);
+                    return (PingState.Slow, $"Slow ping: {times}\n{traceRoute}");
                 }
 
                 return (PingState.Ok, null);
@@ -146,58 +132,6 @@ public sealed class NetworkService : AppService
             catch (Exception e)
             {
                 return (PingState.Exception, $"Ping exception: {e}");
-            }
-        }
-
-        IReadOnlyCollection<NetworkInterface> GetLanInterfaces()
-        {
-            try
-            {
-                return NetworkInterface
-                    .GetAllNetworkInterfaces()
-                    .Where(
-                        x =>
-                            x is { NetworkInterfaceType: NetworkInterfaceType.Ethernet, IsReceiveOnly: false, OperationalStatus: OperationalStatus.Up }
-                            && x.GetIPProperties().GatewayAddresses.Count != 0
-                    )
-                    .ToArray();
-            }
-            catch (Exception e)
-            {
-                LogError(e);
-                return ArraySegment<NetworkInterface>.Empty;
-            }
-        }
-
-        IReadOnlyCollection<WlanInterface> GetWlanInterfaces()
-        {
-            try
-            {
-                return wlanClient
-                    .Interfaces
-                    .Where(
-                        x =>
-                            x.Name.Contains("wi-fi", StringComparison.OrdinalIgnoreCase)
-                            && !x.Name.Contains("virtual", StringComparison.OrdinalIgnoreCase)
-                    )
-                    .ToArray();
-            }
-            catch (Exception e)
-            {
-                LogError(e);
-                return ArraySegment<WlanInterface>.Empty;
-            }
-        }
-
-        Dot11PhyType GetDot11PhyType(WlanInterface wlanInterface)
-        {
-            try
-            {
-                return wlanInterface.CurrentConnection.AssociationAttributes.PhyType;
-            }
-            catch (Win32Exception)
-            {
-                return Dot11PhyType.Unknown;
             }
         }
     }
@@ -209,6 +143,7 @@ public sealed class NetworkService : AppService
             _googlePinger.Dispose();
             _cfPinger.Dispose();
         }
+
         base.Dispose(disposing);
     }
 }

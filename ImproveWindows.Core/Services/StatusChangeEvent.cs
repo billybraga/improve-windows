@@ -1,4 +1,4 @@
-﻿namespace ImproveWindows.Core.Services;
+namespace ImproveWindows.Core.Services;
 
 public class StatusChangeEventArgs : EventArgs, IEquatable<StatusChangeEventArgs>
 {
