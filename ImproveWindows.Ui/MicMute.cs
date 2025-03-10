@@ -45,9 +45,8 @@ internal sealed class MicMute : AppService
                     }
 
 
-                    Console.Beep(isMuted.Value ? 600 : 1000, 33);
                     _audioLevelsService.ChangeMicMuteState();
-                    Console.Beep(isMuted.Value ? 1000 : 600, 66);
+                    Console.Beep(isMuted.Value ? 300 : 150, 100);
                 }
                 finally
                 {

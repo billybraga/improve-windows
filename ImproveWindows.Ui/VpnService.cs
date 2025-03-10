@@ -5,7 +5,7 @@ using ImproveWindows.Core.Services;
 
 namespace ImproveWindows.Ui;
 
-internal partial class VpnService : AppService
+internal sealed partial class VpnService : AppService
 {
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {

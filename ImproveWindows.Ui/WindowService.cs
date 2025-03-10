@@ -131,7 +131,7 @@ internal sealed class WindowService : AppService
                     automationElement,
                     false,
                     true,
-                    (int) (FullWindowWidth * 0.75),
+                    false,
                     HalvedWindowHeight,
                     WindowPosInsertAfter.None
                 );
@@ -178,7 +178,6 @@ internal sealed class WindowService : AppService
     )
     {
         var size = automationElement.Current.BoundingRectangle;
-
         if (IsAboutSize(automationElement, HalvedWindowWidth, FreeScreenHeight))
         {
             _teamsMainWindow = automationElement;
@@ -318,7 +317,7 @@ internal sealed class WindowService : AppService
             automationElement,
             top,
             left,
-            HalvedWindowWidth,
+            false,
             HalvedWindowHeight,
             insertAfter
         );
@@ -340,7 +339,7 @@ internal sealed class WindowService : AppService
             automationElement,
             top,
             true,
-            FullWindowWidth,
+            true,
             HalvedWindowHeight,
             insertAfter
         );
@@ -352,7 +351,7 @@ internal sealed class WindowService : AppService
             automationElement,
             true,
             left,
-            HalvedWindowWidth,
+            false,
             FullWindowHeight,
             insertAfter
         );
@@ -376,9 +375,9 @@ internal sealed class WindowService : AppService
     //     );
     // }
 
-    private void SnapWindow(AutomationElement automationElement, bool top, bool left, int width, int height, WindowPosInsertAfter insertAfter)
+    private void SnapWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height, WindowPosInsertAfter insertAfter)
     {
-        RestoreWindowToQuadrant(automationElement, top, left, width, height, insertAfter);
+        RestoreWindowToQuadrant(automationElement, top, left, fullWidth, height, insertAfter);
     }
 
     private struct WindowPosInsertAfter
@@ -397,9 +396,10 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private void RestoreWindowToQuadrant(AutomationElement automationElement, bool top, bool left, int width, int height,
+    private void RestoreWindowToQuadrant(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height,
         WindowPosInsertAfter insertAfter)
     {
+        var width = fullWidth ? FullWindowWidth : HalvedWindowWidth;
         RestoreWindow(automationElement, GetPosX(left), GetPosY(top), width, height, insertAfter);
     }
 

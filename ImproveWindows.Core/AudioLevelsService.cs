@@ -51,7 +51,7 @@ public class AudioLevelsService : AppService
 
     private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50);
     private static readonly LevelState TeamsCallLevel = new("Call", 80, 100);
-    private static readonly LevelState ChromeLevel = new("Chrome", 60, 100);
+    private static readonly LevelState ChromeLevel = new("Chrome", 100, 100);
     private static readonly LevelState SystemLevel = new("System", 25);
     private static readonly LevelState YtmLevel = new("YTM", 40, 100);
 

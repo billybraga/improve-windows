@@ -3,7 +3,7 @@ using ImproveWindows.Ui.Audio;
 
 namespace ImproveWindows.Ui;
 
-internal class HdmiAudioService : AppService
+internal sealed class HdmiAudioService : AppService
 {
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
