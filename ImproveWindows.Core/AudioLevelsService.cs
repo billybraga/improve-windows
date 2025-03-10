@@ -18,25 +18,28 @@ public class AudioLevelsService : AppService
         public required int Volume { get; init; }
     }
 
+    private record VolumeRange(int Start, int End);
+
     private sealed record LevelState
     {
+        private readonly string _name;
+        private readonly VolumeRange _range;
+
         public LevelStateSession? CurrentSession { get; set; }
 
         public bool Valid => CurrentSession == null
             || (
-                CurrentSession.Value.Volume >= MinExpectedLevel
-                && CurrentSession.Value.Volume <= MaxExpectedLevel
+                CurrentSession.Value.Volume >= _range.Start
+                && CurrentSession.Value.Volume <= _range.End
             );
 
-        public string Name { get; init; }
-        public int MinExpectedLevel { get; init; }
-        public int MaxExpectedLevel { get; init; }
+        public int InitialLevel { get; }
 
-        public LevelState(string name, int minExpectedLevel, int? maxExpectedLevel = null)
+        public LevelState(string name, int initialLevel, VolumeRange range)
         {
-            Name = name;
-            MinExpectedLevel = minExpectedLevel;
-            MaxExpectedLevel = maxExpectedLevel ?? MinExpectedLevel;
+            _name = name;
+            InitialLevel = initialLevel;
+            _range = range;
         }
 
         public override string ToString()
@@ -45,15 +48,30 @@ public class AudioLevelsService : AppService
                 ? "✅"
                 : "❌";
 
-            return $"{Name} {state}";
+            return $"{_name} {state}";
         }
     }
 
-    private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50);
-    private static readonly LevelState TeamsCallLevel = new("Call", 80, 100);
-    private static readonly LevelState ChromeLevel = new("Chrome", 100, 100);
-    private static readonly LevelState SystemLevel = new("System", 25);
-    private static readonly LevelState YtmLevel = new("YTM", 40, 100);
+    private class Subscription
+    {
+        private readonly Action _unsubscribe;
+
+        public Subscription(Action unsubscribe)
+        {
+            _unsubscribe = unsubscribe;
+        }
+
+        public void Unsubscribe()
+        {
+            _unsubscribe();
+        }
+    }
+
+    private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50, new(50, 75));
+    private static readonly LevelState TeamsCallLevel = new("Call", 100, new(80, 100));
+    private static readonly LevelState ChromeLevel = new("Chrome", 100, new(50, 100));
+    private static readonly LevelState SystemLevel = new("System", 25, new(25, 50));
+    private static readonly LevelState YtmLevel = new("YTM", 40, new(40, 100));
 
     private static readonly Func<Process, int> GetParentProcessId = typeof(Process)
         .GetProperty("ParentProcessId", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -83,67 +101,63 @@ public class AudioLevelsService : AppService
 
         var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
 
-        try
-        {
-            _ = coreAudioController.AudioDeviceChanged.Subscribe(
-                args =>
+        // Ignore disposing the subscription, will be disposed by coreAudioController
+        _ = coreAudioController.AudioDeviceChanged.Subscribe(
+            args =>
+            {
+                LogInfo($"Received {args.ChangedType} for {args.Device.GetDeviceName()}");
+                switch (args.ChangedType)
                 {
-                    LogInfo($"Received {args.ChangedType} for {args.Device.GetDeviceName()}");
-                    switch (args.ChangedType)
-                    {
-                        case DeviceChangedType.DeviceAdded:
-                            if (args.Device.IsCaptureDevice)
-                            {
-                                AddAudioCaptureDevice((CoreAudioDevice) args.Device);
-                            }
+                    case DeviceChangedType.DeviceAdded:
+                        if (args.Device.IsCaptureDevice)
+                        {
+                            AddAudioCaptureDevice((CoreAudioDevice) args.Device);
+                        }
 
-                            break;
+                        break;
 
-                        case DeviceChangedType.DefaultChanged:
-                            if (args.Device.IsPlaybackDevice)
-                            {
-                                // ReSharper disable once AccessToDisposedClosure
-                                defaultPlaybackSetup.Dispose();
-                                defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
-                            }
+                    case DeviceChangedType.DefaultChanged:
+                        if (args.Device.IsPlaybackDevice)
+                        {
+                            // ReSharper disable once AccessToDisposedClosure
+                            defaultPlaybackSetup.Unsubscribe();
+                            defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
+                        }
 
-                            break;
+                        break;
 
-                        case DeviceChangedType.StateChanged:
-                            LogInfo($"{args.Device.Name} is {args.Device.State}");
-                            break;
-                        case DeviceChangedType.DeviceRemoved:
-                            break;
-                        case DeviceChangedType.PropertyChanged:
-                            break;
-                        case DeviceChangedType.MuteChanged:
-                            break;
-                        case DeviceChangedType.VolumeChanged:
-                            break;
-                        case DeviceChangedType.PeakValueChanged:
-                            break;
-                        default:
-                            throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
-                    }
+                    case DeviceChangedType.StateChanged:
+                        LogInfo($"{args.Device.Name} is {args.Device.State}");
+                        break;
+                    case DeviceChangedType.DeviceRemoved:
+                        break;
+                    case DeviceChangedType.PropertyChanged:
+                        break;
+                    case DeviceChangedType.MuteChanged:
+                        break;
+                    case DeviceChangedType.VolumeChanged:
+                        break;
+                    case DeviceChangedType.PeakValueChanged:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
                 }
-            );
-
-            foreach (var captureDevice in (await coreAudioController.GetCaptureDevicesAsync()).OrderBy(x => x.State))
-            {
-                AddAudioCaptureDevice(captureDevice);
             }
+        );
 
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                await Task.Delay(10000, cancellationToken);
-            }
-        }
-        finally
+        foreach (var captureDevice in (await coreAudioController.GetCaptureDevicesAsync()).OrderBy(x => x.State))
         {
-            defaultPlaybackSetup.Dispose();
+            AddAudioCaptureDevice(captureDevice);
         }
 
-        IDisposable ConfigureDefaultAudioPlaybackDevice()
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(10000, cancellationToken);
+        }
+
+        return;
+
+        Subscription ConfigureDefaultAudioPlaybackDevice()
         {
             LogInfo("Configuring default playback");
 
@@ -152,7 +166,7 @@ public class AudioLevelsService : AppService
 
             if (coreAudioDevice is null)
             {
-                return DelegateDisposable.Create(() => { });
+                return new Subscription(() => { });
             }
 
             var defaultPlaybackSessionController = coreAudioDevice.SessionController;
@@ -176,7 +190,7 @@ public class AudioLevelsService : AppService
 
             LogInfo("Configured default playback");
 
-            return DelegateDisposable.Create(
+            return new Subscription(
                 () =>
                 {
                     sessionCreatedSbn.Dispose();
@@ -323,12 +337,11 @@ public class AudioLevelsService : AppService
 
     private void HandleSession(IAudioSession args)
     {
-        LogInfo($"Handling session {args.DisplayName} ({args.SessionState}) on {args.Device.Name}");
-
         var state = AdjustSessionVolume(args);
 
         if (state is null)
         {
+            LogInfo($"Ignoring session {args.DisplayName} ({args.SessionState})");
             return;
         }
 
@@ -349,7 +362,7 @@ public class AudioLevelsService : AppService
             return null;
         }
 
-        session.Volume = state.MinExpectedLevel;
+        session.Volume = state.InitialLevel;
         UpdateTrackedVolume(state, session);
         LogInfo($"{state}, {session.Volume}%");
         return state;
