@@ -1,4 +1,6 @@
+using System.Diagnostics.Contracts;
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Automation;
 using ImproveWindows.Core.Services;
 using Windows.Win32;
@@ -9,6 +11,7 @@ namespace ImproveWindows.Ui;
 
 internal sealed class WindowService : AppService
 {
+    private const float TopRatio = 0.45f;
     private const int ScreenHeight = 2160;
     private const int ScreenWidth = 3840;
     private const int TaskBarHeight = 60;
@@ -17,7 +20,6 @@ internal sealed class WindowService : AppService
     private const int FullWindowHeight = FreeScreenHeight + WindowPadding;
     private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
     private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
-    private const int HalvedWindowHeight = (FreeScreenHeight / 2) + (WindowPadding * 1);
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 74;
     private const int TeamsShareWindowBottomPadding = 3;
@@ -120,19 +122,20 @@ internal sealed class WindowService : AppService
 
             if (name.Contains("Microsoft Teams"))
             {
-                await HandleTeamsWindow(automationElement, cancellationToken);
+                await HandleTeamsWindowOpeningAsync(automationElement, cancellationToken);
                 return;
             }
 
             if (name.Contains("Improve Windows"))
             {
                 // PutWindowInQuadrant(automationElement, true, false);
+                const bool top = false;
                 RestoreWindowToQuadrant(
                     automationElement,
-                    false,
+                    top,
                     true,
                     false,
-                    HalvedWindowHeight,
+                    HalvedWindowHeight(top),
                     WindowPosInsertAfter.None
                 );
                 return;
@@ -156,12 +159,20 @@ internal sealed class WindowService : AppService
                 return;
             }
 
-            LogInfo($"Skipped window {name}");
-
             if (_meetingState == MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight))
             {
                 PutWindowInHorizontalHalf(automationElement, false, WindowPosInsertAfter.TopMost);
+                return;
             }
+
+            if (_meetingState is MeetingState.Thumbnail or MeetingState.None
+                && IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false)))
+            {
+                MaximizeWindow(automationElement);
+                return;
+            }
+
+            LogInfo($"Skipped window {name}");
         }
         catch (ElementNotAvailableException)
         {
@@ -172,7 +183,7 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private async Task HandleTeamsWindow(
+    private async Task HandleTeamsWindowOpeningAsync(
         AutomationElement automationElement,
         CancellationToken cancellationToken
     )
@@ -187,113 +198,130 @@ internal sealed class WindowService : AppService
 
         if (size is { Height: < 500, Width: < 500 })
         {
-            LogInfo($"Teams thumbnail opened ({size.Width}x{size.Height})");
-
-            _ = PInvoke.SetWindowPos(
-                new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
-
-                // Keep the thumbnail top-most
-                WindowPosInsertAfter.TopMost.Value,
-                800,
-                100,
-                (int) size.Width,
-                (int) size.Height,
-                default
-            );
-
-            Once(
-                automationElement,
-                WindowPattern.WindowClosedEvent,
-                () =>
-                {
-                    _ = Task.Run(
-                        async () =>
-                        {
-                            LogInfo("Thumbnail closed");
-
-                            await Task.Delay(500, cancellationToken);
-
-                            if (_meetingState == MeetingState.Thumbnail)
-                            {
-                                UpdateMeetingLayout(MeetingState.Window, cancellationToken);
-                            }
-                        },
-                        cancellationToken
-                    );
-                }
-            );
-
-            UpdateMeetingLayout(MeetingState.Thumbnail, cancellationToken);
-
-            LogInfo("Teams thumbnail moved");
+            HandleTeamsThumbnail(automationElement, size, cancellationToken);
         }
         else if (_meetingState > MeetingState.None)
         {
-            if (_meetingWindowShareActive)
-            {
-                return;
-            }
-
-            _meetingWindowShareActive = true;
-
-            LogInfo("Teams screen share window opened");
-
-            UpdateTeamsMainWindowPosition();
-
-            var hasRequestControlButton = true; // FindTakeControlElement(automationElement) != null;
-            PositionTeamsShareWindow(automationElement, hasRequestControlButton);
-
-            Once(
-                automationElement,
-                WindowPattern.WindowClosedEvent,
-                () =>
-                {
-                    _meetingWindowShareActive = false;
-
-                    UpdateTeamsMainWindowPosition();
-                }
-            );
-
-            LogInfo("Teams screen share window moved");
-
-            // var hasRequestControlButtonCheckCount = 0;
-            // while (!hasRequestControlButton && hasRequestControlButtonCheckCount++ < 5)
-            // {
-            //     await Task.Delay(250, cancellationToken);
-            //     hasRequestControlButton = FindTakeControlElement(automationElement) != null;
-            // }
-            //
-            // if (hasRequestControlButton)
-            // {
-            //     PositionTeamsShareWindow(automationElement, hasRequestControlButton);
-            //     LogInfo("Teams screen share window moved again after seeing take control");
-            // }
+            HandleTeamsMeetingShareWindow(automationElement);
         }
         else
         {
-            LogInfo("Teams meeting opened");
+            await HandleTeamsMeetingWindowOpeningAsync(automationElement, cancellationToken);
+        }
+    }
 
-            if (_teamsMeeting.HasValue)
+    private async Task HandleTeamsMeetingWindowOpeningAsync(AutomationElement automationElement, CancellationToken cancellationToken)
+    {
+        LogInfo("Teams meeting opened");
+
+        if (_teamsMeeting.HasValue)
+        {
+            var teamsMeeting = _teamsMeeting.Value;
+            try
             {
-                var teamsMeeting = _teamsMeeting.Value;
-                try
+                if (!teamsMeeting.CancellationTokenSource.IsCancellationRequested)
                 {
-                    if (!teamsMeeting.CancellationTokenSource.IsCancellationRequested)
-                    {
-                        await teamsMeeting.CancellationTokenSource.CancelAsync();
-                    }
-                }
-                finally
-                {
-                    teamsMeeting.CancellationTokenSource.Dispose();
-                    teamsMeeting.Task.Dispose();
+                    await teamsMeeting.CancellationTokenSource.CancelAsync();
                 }
             }
-
-            var cancellationTokenSource = new CancellationTokenSource();
-            _teamsMeeting = (ManageTeamsMeetingWindowAsync(automationElement, cancellationToken, cancellationTokenSource.Token),
-                cancellationTokenSource);
+            finally
+            {
+                teamsMeeting.CancellationTokenSource.Dispose();
+                teamsMeeting.Task.Dispose();
+            }
         }
+
+        var cancellationTokenSource = new CancellationTokenSource();
+        _teamsMeeting = (
+            ManageTeamsMeetingWindowLifeAsync(automationElement, cancellationToken, cancellationTokenSource.Token),
+            cancellationTokenSource
+        );
+    }
+
+    private void HandleTeamsMeetingShareWindow(AutomationElement automationElement)
+    {
+        if (_meetingWindowShareActive)
+        {
+            return;
+        }
+
+        _meetingWindowShareActive = true;
+
+        LogInfo("Teams screen share window opened");
+
+        UpdateTeamsMainWindowPosition();
+
+        var hasRequestControlButton = true; // FindTakeControlElement(automationElement) != null;
+        PositionTeamsShareWindow(automationElement, hasRequestControlButton);
+
+        Once(
+            automationElement,
+            WindowPattern.WindowClosedEvent,
+            () =>
+            {
+                _meetingWindowShareActive = false;
+
+                UpdateTeamsMainWindowPosition();
+            }
+        );
+
+        LogInfo("Teams screen share window moved");
+
+        // var hasRequestControlButtonCheckCount = 0;
+        // while (!hasRequestControlButton && hasRequestControlButtonCheckCount++ < 5)
+        // {
+        //     await Task.Delay(250, cancellationToken);
+        //     hasRequestControlButton = FindTakeControlElement(automationElement) != null;
+        // }
+        //
+        // if (hasRequestControlButton)
+        // {
+        //     PositionTeamsShareWindow(automationElement, hasRequestControlButton);
+        //     LogInfo("Teams screen share window moved again after seeing take control");
+        // }
+    }
+
+    private void HandleTeamsThumbnail(AutomationElement automationElement, Rect size, CancellationToken cancellationToken)
+    {
+        LogInfo($"Teams thumbnail opened ({size.Width}x{size.Height})");
+
+        _ = PInvoke.SetWindowPos(
+            new HWND(new IntPtr(automationElement.Current.NativeWindowHandle)),
+
+            // Keep the thumbnail top-most
+            WindowPosInsertAfter.TopMost.Value,
+            800,
+            100,
+            (int) size.Width,
+            (int) size.Height,
+            default
+        );
+
+        Once(
+            automationElement,
+            WindowPattern.WindowClosedEvent,
+            () =>
+            {
+                _ = Task.Run(
+                    async () =>
+                    {
+                        LogInfo("Thumbnail closed");
+
+                        await Task.Delay(500, cancellationToken);
+
+                        if (_meetingState == MeetingState.Thumbnail)
+                        {
+                            UpdateMeetingLayout(MeetingState.Window, cancellationToken);
+                        }
+                    },
+                    cancellationToken
+                );
+            }
+        );
+
+        UpdateMeetingLayout(MeetingState.Thumbnail, cancellationToken);
+
+        LogInfo("Teams thumbnail moved");
     }
 
     private void PositionTeamsShareWindow(AutomationElement automationElement, bool hasRequestControlButton)
@@ -303,10 +331,10 @@ internal sealed class WindowService : AppService
 
         RestoreWindow(
             automationElement,
-            GetPosX(false),
-            GetPosY(true) - topPadding + TeamsShareWindowBottomPadding,
-            HalvedWindowWidth,
-            HalvedWindowHeight + topPadding + TeamsShareWindowBottomPadding,
+            x: GetPosX(false),
+            y: TeamsShareWindowBottomPadding - topPadding,
+            width: HalvedWindowWidth,
+            height: (FreeScreenHeight / 2) + WindowPadding + topPadding + TeamsShareWindowBottomPadding,
             WindowPosInsertAfter.None
         );
     }
@@ -318,16 +346,27 @@ internal sealed class WindowService : AppService
             top,
             left,
             false,
-            HalvedWindowHeight,
+            HalvedWindowHeight(top),
             insertAfter
         );
     }
 
-    private static int GetPosY(bool top)
+    [Pure]
+    private static int HalvedWindowHeight(bool top)
     {
-        return top ? 0 : FreeScreenHeight / 2;
+        var ratio = top
+            ? TopRatio
+            : (1 - TopRatio);
+        return (int) Math.Round(FreeScreenHeight * ratio) + WindowPadding;
     }
 
+    [Pure]
+    private static int GetPosY(bool top)
+    {
+        return top ? 0 : (int) Math.Round(TopRatio * FreeScreenHeight);
+    }
+
+    [Pure]
     private static int GetPosX(bool left)
     {
         return (left ? 0 : (ScreenWidth / 2)) - WindowPadding;
@@ -340,7 +379,7 @@ internal sealed class WindowService : AppService
             top,
             true,
             true,
-            HalvedWindowHeight,
+            HalvedWindowHeight(top),
             insertAfter
         );
     }
@@ -516,7 +555,7 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private async Task ManageTeamsMeetingWindowAsync(AutomationElement automationElement, CancellationToken serviceCancellationToken,
+    private async Task ManageTeamsMeetingWindowLifeAsync(AutomationElement automationElement, CancellationToken serviceCancellationToken,
         CancellationToken cancellationToken)
     {
         using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -688,15 +727,13 @@ internal sealed class WindowService : AppService
                         )
                     )
                     .OfType<AutomationElement>()
-                    .Select(
-                        x => new
+                    .Select(x => new
                         {
                             previousWindow = windowPrevs[x.Current.NativeWindowHandle],
                             automationElement = x,
                         }
                     )
-                    .Select(
-                        x => Task.Run(
+                    .Select(x => Task.Run(
                             async () =>
                             {
                                 var automationElement = x.automationElement;
@@ -728,7 +765,8 @@ internal sealed class WindowService : AppService
                                         return;
                                     }
 
-                                    if (_meetingState != MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight))
+                                    if (_meetingState != MeetingState.Window
+                                        && IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false)))
                                     {
                                         LogInfo($"Maximizing {name}");
                                         MaximizeWindow(automationElement);
