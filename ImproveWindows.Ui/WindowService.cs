@@ -22,7 +22,7 @@ internal sealed class WindowService : AppService
     private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 74;
-    private const int TeamsShareWindowBottomPadding = 3;
+    private const int TeamsShareWindowBottomPadding = 15;
 
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(2);
 
@@ -334,7 +334,7 @@ internal sealed class WindowService : AppService
             x: GetPosX(false),
             y: TeamsShareWindowBottomPadding - topPadding,
             width: HalvedWindowWidth,
-            height: (FreeScreenHeight / 2) + WindowPadding + topPadding + TeamsShareWindowBottomPadding,
+            height: HalvedWindowHeight(true) + WindowPadding + topPadding + TeamsShareWindowBottomPadding,
             WindowPosInsertAfter.None
         );
     }
