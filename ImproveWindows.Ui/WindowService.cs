@@ -141,7 +141,7 @@ internal sealed class WindowService : AppService
                 return;
             }
 
-            if (name == "Outlook")
+            if (name.StartsWith("Outlook", StringComparison.InvariantCulture) && !name.Contains("Mail") && !name.Contains("Calendar"))
             {
                 name = await WaitForDifferentNameAsync(name, automationElement, cancellationToken)
                     ?? name;
