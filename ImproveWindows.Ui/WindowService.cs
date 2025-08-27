@@ -12,14 +12,22 @@ namespace ImproveWindows.Ui;
 internal sealed class WindowService : AppService
 {
     private const float TopRatio = 0.45f;
-    private const int ScreenHeight = 2160;
-    private const int ScreenWidth = 3840;
-    private const int TaskBarHeight = 60;
-    private const int FreeScreenHeight = ScreenHeight - TaskBarHeight;
+    private const decimal WindowsZoom = 1.25m;
+    private const int NativeScreenWidth = 3840;
+    private const int NativeScreenHeight = 2160;
+    private const int EffectiveScreenWidth = 3840;
+    private const int EffectiveScreenHeight = 2160;
+    private const int ActualTaskBarHeight = (int) (48 * WindowsZoom);
+    private const int ScreenOffsetLeft = (NativeScreenWidth - EffectiveScreenWidth) / 2;
+    private const int ScreenOffsetTop = (NativeScreenHeight - EffectiveScreenHeight) / 2;
+#pragma warning disable CA1508
+    private const int EffectiveTaskBarHeight = ScreenOffsetTop == 0 ? ActualTaskBarHeight : 0;
+#pragma warning restore CA1508
+    private const int FreeScreenHeight = EffectiveScreenHeight - EffectiveTaskBarHeight;
     private const int WindowPadding = 8;
     private const int FullWindowHeight = FreeScreenHeight + WindowPadding;
-    private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
-    private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
+    private const int HalvedWindowWidth = (EffectiveScreenWidth / 2) + (WindowPadding * 2);
+    private const int FullWindowWidth = EffectiveScreenWidth + (WindowPadding * 2);
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 74;
     private const int TeamsShareWindowBottomPadding = 15;
@@ -369,7 +377,7 @@ internal sealed class WindowService : AppService
     [Pure]
     private static int GetPosX(bool left)
     {
-        return (left ? 0 : (ScreenWidth / 2)) - WindowPadding;
+        return (left ? 0 : (EffectiveScreenWidth / 2)) - WindowPadding;
     }
 
     private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter)
@@ -475,8 +483,8 @@ internal sealed class WindowService : AppService
         var posResult = PInvoke.SetWindowPos(
             windowHandle,
             insertAfter.Value,
-            x,
-            y,
+            x + ScreenOffsetLeft,
+            y + ScreenOffsetTop,
             width,
             height,
             SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
