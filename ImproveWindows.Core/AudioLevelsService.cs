@@ -12,65 +12,10 @@ namespace ImproveWindows.Core;
 
 public class AudioLevelsService : AppService
 {
-    private readonly struct LevelStateSession
-    {
-        public required string Id { get; init; }
-        public required int Volume { get; init; }
-    }
-
-    private record VolumeRange(int Start, int End);
-
-    private sealed record LevelState
-    {
-        private readonly string _name;
-        private readonly VolumeRange _range;
-
-        public LevelStateSession? CurrentSession { get; set; }
-
-        public bool Valid => CurrentSession == null
-            || (
-                CurrentSession.Value.Volume >= _range.Start
-                && CurrentSession.Value.Volume <= _range.End
-            );
-
-        public int InitialLevel { get; }
-
-        public LevelState(string name, int initialLevel, VolumeRange range)
-        {
-            _name = name;
-            InitialLevel = initialLevel;
-            _range = range;
-        }
-
-        public override string ToString()
-        {
-            var state = Valid
-                ? "✅"
-                : "❌";
-
-            return $"{_name} {state}";
-        }
-    }
-
-    private class Subscription
-    {
-        private readonly Action _unsubscribe;
-
-        public Subscription(Action unsubscribe)
-        {
-            _unsubscribe = unsubscribe;
-        }
-
-        public void Unsubscribe()
-        {
-            _unsubscribe();
-        }
-    }
-
-    private static readonly LevelState TeamsNotificationsLevel = new("Notif", 50, new(50, 75));
-    private static readonly LevelState TeamsCallLevel = new("Call", 100, new(80, 100));
+    private static readonly LevelState TeamsNotificationsLevel = new("Notif", 25, new(20, 60));
+    private static readonly LevelState TeamsCallLevel = new("Call", 60, new(50, 100));
     private static readonly LevelState ChromeLevel = new("Chrome", 100, new(50, 100));
-    private static readonly LevelState SystemLevel = new("System", 25, new(25, 50));
+    private static readonly LevelState SystemLevel = new("System", 20, new(20, 50));
     private static readonly LevelState YtmLevel = new("YTM", 40, new(40, 100));
 
     private static readonly Func<Process, int> GetParentProcessId = typeof(Process)
@@ -102,8 +47,7 @@ public class AudioLevelsService : AppService
         var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
 
         // Ignore disposing the subscription, will be disposed by coreAudioController
-        _ = coreAudioController.AudioDeviceChanged.Subscribe(
-            args =>
+        _ = coreAudioController.AudioDeviceChanged.Subscribe(args =>
             {
                 LogInfo($"Received {args.ChangedType} for {args.Device.GetDeviceName()}");
                 switch (args.ChangedType)
@@ -170,8 +114,7 @@ public class AudioLevelsService : AppService
             }
 
             var defaultPlaybackSessionController = coreAudioDevice.SessionController;
-            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(
-                session =>
+            var sessionCreatedSbn = defaultPlaybackSessionController.SessionCreated.Subscribe(session =>
                 {
                     LogInfo($"Session created for {session.DisplayName}");
                     HandleSession(session);
@@ -190,8 +133,7 @@ public class AudioLevelsService : AppService
 
             LogInfo("Configured default playback");
 
-            return new Subscription(
-                () =>
+            return new Subscription(() =>
                 {
                     sessionCreatedSbn.Dispose();
                     sessionDisconnectSbn.Dispose();
@@ -345,8 +287,17 @@ public class AudioLevelsService : AppService
             return;
         }
 
-        _ = args.VolumeChanged.Subscribe(
-            x =>
+        if (args.DisplayName.Contains("Chrome"))
+        {
+            var process = Process.GetProcessById(args.ProcessId);
+            if (process.PriorityClass != ProcessPriorityClass.High)
+            {
+                process.PriorityClass = ProcessPriorityClass.High;
+                LogInfo($"Set {args.DisplayName} priority to high");
+            }
+        }
+
+        _ = args.VolumeChanged.Subscribe(x =>
             {
                 UpdateTrackedVolume(state, x.Session);
                 LogInfo($"{state} externally changed to {x.Volume}");
@@ -447,5 +398,71 @@ public class AudioLevelsService : AppService
         }
 
         base.Dispose(disposing);
+    }
+
+    private readonly struct LevelStateSession
+    {
+        public required string Id { get; init; }
+        public required int Volume { get; init; }
+    }
+
+    private record VolumeRange(int Start, int End)
+    {
+        public override string ToString()
+        {
+            return $"{Start}-{End}";
+        }
+    }
+
+    private sealed record LevelState
+    {
+        private readonly string _name;
+        private readonly VolumeRange _range;
+
+        public LevelStateSession? CurrentSession { get; set; }
+
+        public bool Valid => CurrentSession == null
+            || (
+                CurrentSession.Value.Volume >= _range.Start
+                && CurrentSession.Value.Volume <= _range.End
+            );
+
+        public int InitialLevel { get; }
+
+        public LevelState(string name, int initialLevel, VolumeRange range)
+        {
+            _name = name;
+            InitialLevel = initialLevel;
+            _range = range;
+
+            if (initialLevel < range.Start || initialLevel > range.End)
+            {
+                throw new InvalidOperationException($"{name}'s initial level ({initialLevel}) is out of range ({range})");
+            }
+        }
+
+        public override string ToString()
+        {
+            var state = Valid
+                ? "✅"
+                : "❌";
+
+            return $"{_name} {state}";
+        }
+    }
+
+    private class Subscription
+    {
+        private readonly Action _unsubscribe;
+
+        public Subscription(Action unsubscribe)
+        {
+            _unsubscribe = unsubscribe;
+        }
+
+        public void Unsubscribe()
+        {
+            _unsubscribe();
+        }
     }
 }
