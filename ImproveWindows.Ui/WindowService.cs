@@ -208,7 +208,7 @@ internal sealed class WindowService : AppService
         {
             HandleTeamsThumbnail(automationElement, size, cancellationToken);
         }
-        else if (_meetingState > MeetingState.None)
+        else if (_meetingState == MeetingState.Window)
         {
             HandleTeamsMeetingShareWindow(automationElement);
         }
