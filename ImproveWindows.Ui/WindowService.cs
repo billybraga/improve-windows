@@ -146,6 +146,7 @@ internal sealed class WindowService : AppService
                     HalvedWindowHeight(top),
                     WindowPosInsertAfter.None
                 );
+                MinimizeWindow(automationElement);
                 return;
             }
 
@@ -493,6 +494,24 @@ internal sealed class WindowService : AppService
         if (!posResult)
         {
             throw new InvalidOperationException($"Error code {posResult} positioning window {name}");
+        }
+    }
+
+    private static void MinimizeWindow(AutomationElement automationElement)
+    {
+        var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
+        var placementResult = PInvoke.SetWindowPlacement(
+            windowHandle,
+            new WINDOWPLACEMENT
+            {
+                showCmd = SHOW_WINDOW_CMD.SW_MINIMIZE,
+                length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
+            }
+        );
+
+        if (!placementResult)
+        {
+            throw new InvalidOperationException("Error code restoring window");
         }
     }
 
