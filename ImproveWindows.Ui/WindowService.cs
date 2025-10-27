@@ -28,8 +28,9 @@ internal sealed class WindowService : AppService
     private const int FullWindowHeight = FreeScreenHeight + WindowPadding;
     private const int HalvedWindowWidth = (EffectiveScreenWidth / 2) + (WindowPadding * 2);
     private const int FullWindowWidth = EffectiveScreenWidth + (WindowPadding * 2);
+    private const int SnappedWindowHeight = FreeScreenHeight / 2 + WindowPadding;
     private const int TeamsShareWindowStatusBarPadding = 36;
-    private const int TeamsShareWindowToolbarPadding = 74;
+    private const int TeamsShareWindowToolbarPadding = 68;
     private const int TeamsShareWindowBottomPadding = 15;
 
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(2);
@@ -38,6 +39,10 @@ internal sealed class WindowService : AppService
     private MeetingState _meetingState;
     private bool _meetingWindowShareActive;
     private readonly Dictionary<string, HashSet<string>> _elementFindingCache = [];
+    private CancellationTokenSource? _layoutDuringMeetingCts;
+    private Task? _layoutDuringMeetingTask;
+    private AutomationElement? _teamsMainWindow;
+    private AutomationElement? _chromeWindow;
 
     private enum MeetingState
     {
@@ -128,6 +133,12 @@ internal sealed class WindowService : AppService
                 return;
             }
 
+            if (name.Contains("- Google Chrome"))
+            {
+                HandleChromeWindowOpening(automationElement);
+                return;
+            }
+
             if (name.Contains("Microsoft Teams"))
             {
                 await HandleTeamsWindowOpeningAsync(automationElement, cancellationToken);
@@ -146,7 +157,6 @@ internal sealed class WindowService : AppService
                     HalvedWindowHeight(top),
                     WindowPosInsertAfter.None
                 );
-                MinimizeWindow(automationElement);
                 return;
             }
 
@@ -190,6 +200,26 @@ internal sealed class WindowService : AppService
         {
             LogError(e);
         }
+    }
+
+    private void HandleChromeWindowOpening(AutomationElement automationElement)
+    {
+        _chromeWindow = automationElement;
+        LogInfo($"Chrome window is {automationElement.Current.Name}");
+        
+        Automation.AddAutomationPropertyChangedEventHandler(
+            automationElement,
+            TreeScope.Element,
+            (_, _) =>
+            {
+                LogInfo("Chrome changed");
+                Task.Delay(250).Wait();
+                UpdateTeamsMainWindowPosition();
+                Task.Delay(1000).Wait();
+                UpdateTeamsMainWindowPosition();
+            },
+            WindowPattern.WindowVisualStateProperty
+        );
     }
 
     private async Task HandleTeamsWindowOpeningAsync(
@@ -453,12 +483,11 @@ internal sealed class WindowService : AppService
 
     private void RestoreWindow(AutomationElement automationElement, int x, int y, int width, int height, WindowPosInsertAfter insertAfter)
     {
-        var currentRectangle = automationElement.Current.BoundingRectangle;
         var name = automationElement.Current.Name;
         if (IsAboutSize(automationElement, width, height)
-            && IsAbout(x / currentRectangle.X, 1)
-            && IsAbout(y / currentRectangle.Y, 1))
+            && IsAboutPosition(automationElement, x, y))
         {
+            var currentRectangle = automationElement.Current.BoundingRectangle;
             LogInfo(
                 $"Skipping resize to {width}x{height} and position to {x} {y} "
                 + $"(currently {currentRectangle.Width}x{currentRectangle.Height} at {currentRectangle.X},{currentRectangle.Y}) of {name}"
@@ -650,11 +679,18 @@ internal sealed class WindowService : AppService
         }
         else
         {
-            if (_meetingWindowShareActive)
+            if (_meetingWindowShareActive || ChromeIsTopRight())
                 PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
             else if (_meetingState == MeetingState.Window)
                 PutWindowInQuadrant(_teamsMainWindow, false, true, WindowPosInsertAfter.None);
         }
+    }
+
+    private bool ChromeIsTopRight()
+    {
+        return _chromeWindow is not null
+            && IsAboutSize(_chromeWindow, HalvedWindowWidth, SnappedWindowHeight)
+            && IsAboutPosition(_chromeWindow, left: false, top: true);
     }
 
 #pragma warning disable IDE0051
@@ -700,10 +736,6 @@ internal sealed class WindowService : AppService
         return openContentElements.SingleOrDefault(x => x.Current.Name.Contains(nameMatch));
     }
 
-    private CancellationTokenSource? _layoutDuringMeetingCts;
-    private Task? _layoutDuringMeetingTask;
-    private AutomationElement? _teamsMainWindow;
-
     private void UpdateMeetingLayout(MeetingState state, CancellationToken serviceCancellationToken)
     {
         _meetingState = state;
@@ -737,8 +769,12 @@ internal sealed class WindowService : AppService
                 _ = PInvoke.EnumWindows(
                     (hwnd, _) =>
                     {
-                        windowPrevs[hwnd.Value.ToInt32()] = prev;
-                        prev = hwnd;
+                        if (!hwnd.IsNull)
+                        {
+                            windowPrevs[((IntPtr) hwnd).ToInt32()] = prev;
+                            prev = hwnd;
+                        }
+
                         return true;
                     },
                     IntPtr.Zero
@@ -893,7 +929,14 @@ internal sealed class WindowService : AppService
 
     private static bool IsAbout(double value, double reference)
     {
-        return (Math.Abs(value - reference) / reference) < 0.05;
+        var absoluteDifference = Math.Abs(value - reference);
+        
+        if (Math.Abs(reference) < double.Epsilon)
+        {
+            return absoluteDifference < double.Epsilon;
+        }
+
+        return (absoluteDifference / reference) < 0.05;
     }
 
     private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight)
@@ -902,6 +945,24 @@ internal sealed class WindowService : AppService
         {
             return IsAbout(element.Current.BoundingRectangle.Height, referenceHeight)
                 && IsAbout(element.Current.BoundingRectangle.Width, referenceWidth);
+        }
+        catch (ElementNotAvailableException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsAboutPosition(AutomationElement element, bool top, bool left)
+    {
+        return IsAboutPosition(element, GetPosX(left), GetPosY(top));
+    }
+
+    private static bool IsAboutPosition(AutomationElement element, int x, int y)
+    {
+        try
+        {
+            return IsAbout(element.Current.BoundingRectangle.Left, x)
+                && IsAbout(element.Current.BoundingRectangle.Top, y);
         }
         catch (ElementNotAvailableException)
         {
