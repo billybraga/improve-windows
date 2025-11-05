@@ -56,6 +56,7 @@ internal partial class ServiceControl
 
     private void RestartBtnClick(object sender, RoutedEventArgs e)
     {
+        Logs.Text = string.Empty;
         OnRestartClick?.Invoke(sender, e);
     }
 

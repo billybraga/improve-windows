@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -28,12 +29,12 @@ internal sealed class WindowService : AppService
     private const int FullWindowHeight = FreeScreenHeight + WindowPadding;
     private const int HalvedWindowWidth = (EffectiveScreenWidth / 2) + (WindowPadding * 2);
     private const int FullWindowWidth = EffectiveScreenWidth + (WindowPadding * 2);
-    private const int SnappedWindowHeight = FreeScreenHeight / 2 + WindowPadding;
+    private const int NativelySnappedWindowHeight = FreeScreenHeight / 2 + WindowPadding;
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 68;
     private const int TeamsShareWindowBottomPadding = 15;
 
-    private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(3);
 
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeeting;
     private MeetingState _meetingState;
@@ -43,6 +44,7 @@ internal sealed class WindowService : AppService
     private Task? _layoutDuringMeetingTask;
     private AutomationElement? _teamsMainWindow;
     private AutomationElement? _chromeWindow;
+    private DateTime _lastChromeChange = DateTime.Now;
 
     private enum MeetingState
     {
@@ -118,6 +120,15 @@ internal sealed class WindowService : AppService
         finally
         {
             Automation.RemoveAllEventHandlers();
+
+            _chromeWindow = null;
+            _elementFindingCache.Clear();
+            _layoutDuringMeetingCts = null;
+            _layoutDuringMeetingTask = null;
+            _meetingState = MeetingState.None;
+            _teamsMainWindow = null;
+            _meetingWindowShareActive = false;
+            _teamsMeeting = null;
         }
     }
 
@@ -125,13 +136,15 @@ internal sealed class WindowService : AppService
     {
         try
         {
-            var name = await WaitForNameAsync(automationElement, cancellationToken);
+            var result = await WaitForNameAsync(automationElement, cancellationToken);
 
-            if (name is null)
+            if (result is null)
             {
                 LogInfo("Skipped window with no name");
                 return;
             }
+
+            var (name, process) = result.Value;
 
             if (name.Contains("- Google Chrome"))
             {
@@ -178,14 +191,13 @@ internal sealed class WindowService : AppService
                 return;
             }
 
-            if (_meetingState == MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight))
+            if (_meetingState == MeetingState.Window && ShouldPutToLowerHalfInMeetings(automationElement, process))
             {
                 PutWindowInHorizontalHalf(automationElement, false, WindowPosInsertAfter.TopMost);
                 return;
             }
 
-            if (_meetingState is MeetingState.Thumbnail or MeetingState.None
-                && IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false)))
+            if (_meetingState is MeetingState.Thumbnail or MeetingState.None && ShouldBeFullScreen(automationElement, process))
             {
                 MaximizeWindow(automationElement);
                 return;
@@ -202,24 +214,60 @@ internal sealed class WindowService : AppService
         }
     }
 
+    private static bool ShouldBeFullScreen(AutomationElement automationElement, string process)
+    {
+        return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
+            || IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false));
+    }
+
+    private static bool ShouldPutToLowerHalfInMeetings(AutomationElement automationElement, string process)
+    {
+        return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
+            || IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight);
+    }
+
     private void HandleChromeWindowOpening(AutomationElement automationElement)
     {
         _chromeWindow = automationElement;
         LogInfo($"Chrome window is {automationElement.Current.Name}");
-        
+
         Automation.AddAutomationPropertyChangedEventHandler(
             automationElement,
             TreeScope.Element,
             (_, _) =>
             {
-                LogInfo("Chrome changed");
-                Task.Delay(250).Wait();
-                UpdateTeamsMainWindowPosition();
-                Task.Delay(1000).Wait();
-                UpdateTeamsMainWindowPosition();
+                if (DateTime.Now - _lastChromeChange < TimeSpan.FromSeconds(1))
+                {
+                    LogError(new InvalidOperationException("Chrome changed too fast"));
+                    return;
+                }
+
+                Task.Delay(100).Wait();
+                UpdateLayout();
             },
             WindowPattern.WindowVisualStateProperty
         );
+
+        void UpdateLayout()
+        {
+            var currRect = automationElement.Current.BoundingRectangle;
+            LogInfo($"Chrome changed {currRect.X}x{currRect.Y}");
+
+            // if (_meetingState == MeetingState.Window
+            //     && IsNativelySnapped(automationElement, false, true, false))
+            // {
+            //     _lastChromeChange = DateTime.Now;
+            //     PutWindowInHorizontalHalf(automationElement, false, WindowPosInsertAfter.Top);
+            // }
+
+            UpdateTeamsMainWindowPosition();
+        }
+    }
+
+    private static bool IsNativelySnapped(AutomationElement automationElement, bool fullWidth, bool top, bool left)
+    {
+        return IsAboutSize(automationElement, fullWidth ? FullWindowWidth : FullWindowWidth / 2.0, NativelySnappedWindowHeight)
+            && IsAboutPosition(automationElement, GetPosX(left), top ? 0 : NativelySnappedWindowHeight);
     }
 
     private async Task HandleTeamsWindowOpeningAsync(
@@ -380,7 +428,7 @@ internal sealed class WindowService : AppService
 
     private void PutWindowInQuadrant(AutomationElement automationElement, bool left, bool top, WindowPosInsertAfter insertAfter)
     {
-        SnapWindow(
+        CustomSnapWindow(
             automationElement,
             top,
             left,
@@ -413,7 +461,7 @@ internal sealed class WindowService : AppService
 
     private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter)
     {
-        SnapWindow(
+        CustomSnapWindow(
             automationElement,
             top,
             true,
@@ -425,7 +473,7 @@ internal sealed class WindowService : AppService
 
     private void PutWindowInVerticalHalf(AutomationElement automationElement, bool left, WindowPosInsertAfter insertAfter)
     {
-        SnapWindow(
+        CustomSnapWindow(
             automationElement,
             true,
             left,
@@ -453,7 +501,8 @@ internal sealed class WindowService : AppService
     //     );
     // }
 
-    private void SnapWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height, WindowPosInsertAfter insertAfter)
+    private void CustomSnapWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height,
+        WindowPosInsertAfter insertAfter)
     {
         RestoreWindowToQuadrant(automationElement, top, left, fullWidth, height, insertAfter);
     }
@@ -481,17 +530,19 @@ internal sealed class WindowService : AppService
         RestoreWindow(automationElement, GetPosX(left), GetPosY(top), width, height, insertAfter);
     }
 
+#pragma warning disable CA1822
     private void RestoreWindow(AutomationElement automationElement, int x, int y, int width, int height, WindowPosInsertAfter insertAfter)
+#pragma warning restore CA1822
     {
         var name = automationElement.Current.Name;
         if (IsAboutSize(automationElement, width, height)
             && IsAboutPosition(automationElement, x, y))
         {
-            var currentRectangle = automationElement.Current.BoundingRectangle;
-            LogInfo(
-                $"Skipping resize to {width}x{height} and position to {x} {y} "
-                + $"(currently {currentRectangle.Width}x{currentRectangle.Height} at {currentRectangle.X},{currentRectangle.Y}) of {name}"
-            );
+            // var currentRectangle = automationElement.Current.BoundingRectangle;
+            // LogInfo(
+            //     $"Skipping resize to {width}x{height} and position to {x} {y} "
+            //     + $"(currently {currentRectangle.Width}x{currentRectangle.Height} at {currentRectangle.X},{currentRectangle.Y}) of {name}"
+            // );
             return;
         }
 
@@ -689,7 +740,7 @@ internal sealed class WindowService : AppService
     private bool ChromeIsTopRight()
     {
         return _chromeWindow is not null
-            && IsAboutSize(_chromeWindow, HalvedWindowWidth, SnappedWindowHeight)
+            && IsAboutSize(_chromeWindow, HalvedWindowWidth, NativelySnappedWindowHeight)
             && IsAboutPosition(_chromeWindow, left: false, top: true);
     }
 
@@ -842,14 +893,36 @@ internal sealed class WindowService : AppService
                             cancellationToken
                         )
                     )
-                    .Concat([Task.Run(UpdateTeamsMainWindowPosition, cancellationToken)])
+                    .Concat(
+                        [
+                            Task.Run(UpdateTeamsMainWindowPosition, cancellationToken),
+                            ..state == MeetingState.None
+                                ? new[]
+                                {
+                                    Task.Run(
+                                        () =>
+                                        {
+                                            if (state == MeetingState.None
+                                                && _chromeWindow is not null
+                                                && IsNativelySnapped(_chromeWindow, false, true, false))
+                                            {
+                                                LogInfo("Restoring chrome");
+                                                MaximizeWindow(_chromeWindow);
+                                            }
+                                        },
+                                        cancellationToken
+                                    ),
+                                }
+                                : [],
+                        ]
+                    )
                     .ToArray();
-
                 await Task.WhenAll(tasks);
-
-                LogInfo("--- Finished meeting layout ---");
+                LogInfo($"--- Finished meeting layout to {state} ---");
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+            }
             catch (Exception e)
             {
                 LogError(e);
@@ -882,11 +955,12 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private static async Task<string?> WaitForNameAsync(
+    private static async Task<(string Name, string Process)?> WaitForNameAsync(
         AutomationElement automationElement,
         CancellationToken cancellationToken
     )
     {
+        var processTask = Task.Run(() => Process.GetProcessById(automationElement.Current.ProcessId).ProcessName, cancellationToken);
         var name = TryGetName(automationElement);
         var start = DateTime.Now;
 
@@ -901,7 +975,7 @@ internal sealed class WindowService : AppService
             name = TryGetName(automationElement);
         }
 
-        return name;
+        return (name, await processTask);
     }
 
     private static async Task<string?> WaitForDifferentNameAsync(
@@ -930,7 +1004,7 @@ internal sealed class WindowService : AppService
     private static bool IsAbout(double value, double reference)
     {
         var absoluteDifference = Math.Abs(value - reference);
-        
+
         if (Math.Abs(reference) < double.Epsilon)
         {
             return absoluteDifference < double.Epsilon;

@@ -29,7 +29,7 @@ public class AudioLevelsService : AppService
 
     public bool? IsMicMuteState => _teamsCaptureSession?.IsMuted ?? _coreAudioController?.DefaultCaptureDevice?.IsMuted;
 
-    private readonly IReadOnlyCollection<LevelState> _levels =
+    private static readonly IReadOnlyCollection<LevelState> Levels =
     [
         TeamsNotificationsLevel,
         TeamsCallLevel,
@@ -43,63 +43,71 @@ public class AudioLevelsService : AppService
         LogInfo("Starting");
         using var coreAudioController = new CoreAudioController();
         _coreAudioController = coreAudioController;
+        
+        try
+        {
+            var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
 
-        var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
-
-        // Ignore disposing the subscription, will be disposed by coreAudioController
-        _ = coreAudioController.AudioDeviceChanged.Subscribe(args =>
-            {
-                LogInfo($"Received {args.ChangedType} for {args.Device.GetDeviceName()}");
-                switch (args.ChangedType)
+            // Ignore disposing the subscription, will be disposed by coreAudioController
+            _ = coreAudioController.AudioDeviceChanged.Subscribe(args =>
                 {
-                    case DeviceChangedType.DeviceAdded:
-                        if (args.Device.IsCaptureDevice)
-                        {
-                            AddAudioCaptureDevice((CoreAudioDevice) args.Device);
-                        }
+                    LogInfo($"Received {args.ChangedType} for {args.Device.GetDeviceName()}");
+                    switch (args.ChangedType)
+                    {
+                        case DeviceChangedType.DeviceAdded:
+                            if (args.Device.IsCaptureDevice)
+                            {
+                                AddAudioCaptureDevice((CoreAudioDevice) args.Device);
+                            }
 
-                        break;
+                            break;
 
-                    case DeviceChangedType.DefaultChanged:
-                        if (args.Device.IsPlaybackDevice)
-                        {
-                            // ReSharper disable once AccessToDisposedClosure
-                            defaultPlaybackSetup.Unsubscribe();
-                            defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
-                        }
+                        case DeviceChangedType.DefaultChanged:
+                            if (args.Device.IsPlaybackDevice)
+                            {
+                                // ReSharper disable once AccessToDisposedClosure
+                                defaultPlaybackSetup.Unsubscribe();
+                                defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
+                            }
 
-                        break;
+                            break;
 
-                    case DeviceChangedType.StateChanged:
-                        LogInfo($"{args.Device.Name} is {args.Device.State}");
-                        break;
-                    case DeviceChangedType.DeviceRemoved:
-                        break;
-                    case DeviceChangedType.PropertyChanged:
-                        break;
-                    case DeviceChangedType.MuteChanged:
-                        break;
-                    case DeviceChangedType.VolumeChanged:
-                        break;
-                    case DeviceChangedType.PeakValueChanged:
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
+                        case DeviceChangedType.StateChanged:
+                            LogInfo($"{args.Device.Name} is {args.Device.State}");
+                            break;
+                        case DeviceChangedType.DeviceRemoved:
+                            break;
+                        case DeviceChangedType.PropertyChanged:
+                            break;
+                        case DeviceChangedType.MuteChanged:
+                            break;
+                        case DeviceChangedType.VolumeChanged:
+                            break;
+                        case DeviceChangedType.PeakValueChanged:
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException($"Got {args.ChangedType}, what is it?");
+                    }
                 }
+            );
+
+            foreach (var captureDevice in (await coreAudioController.GetCaptureDevicesAsync()).OrderBy(x => x.State))
+            {
+                AddAudioCaptureDevice(captureDevice);
             }
-        );
 
-        foreach (var captureDevice in (await coreAudioController.GetCaptureDevicesAsync()).OrderBy(x => x.State))
-        {
-            AddAudioCaptureDevice(captureDevice);
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(1000, cancellationToken);
+            }
         }
-
-        while (!cancellationToken.IsCancellationRequested)
+        finally
         {
-            await Task.Delay(10000, cancellationToken);
+            _coreAudioController?.Dispose();
+            _coreAudioController = null;
+            _initialized = false;
+            _teamsCaptureSession = null;
         }
-
-        return;
 
         Subscription ConfigureDefaultAudioPlaybackDevice()
         {
@@ -219,8 +227,8 @@ public class AudioLevelsService : AppService
 
     private void UpdateStatus()
     {
-        var levels = string.Join(", ", _levels.Where(x => x.CurrentSession != null));
-        var error = _levels.Any(x => !x.Valid);
+        var levels = string.Join(", ", Levels.Where(x => x.CurrentSession != null));
+        var error = Levels.Any(x => !x.Valid);
         SetStatus(
             _teamsCaptureSession is null
                 ? $"No teams session. {levels}"
@@ -267,7 +275,7 @@ public class AudioLevelsService : AppService
 
     private void HandleSessionDisconnected(string id)
     {
-        foreach (var levelState in _levels)
+        foreach (var levelState in Levels)
         {
             if (levelState.CurrentSession?.Id == id)
             {
