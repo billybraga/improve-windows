@@ -34,7 +34,7 @@ internal sealed class WindowService : AppService
     private const int TeamsShareWindowToolbarPadding = 68;
     private const int TeamsShareWindowBottomPadding = 15;
 
-    private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(5);
 
     private (Task Task, CancellationTokenSource CancellationTokenSource)? _teamsMeeting;
     private MeetingState _meetingState;
@@ -43,8 +43,6 @@ internal sealed class WindowService : AppService
     private CancellationTokenSource? _layoutDuringMeetingCts;
     private Task? _layoutDuringMeetingTask;
     private AutomationElement? _teamsMainWindow;
-    private AutomationElement? _chromeWindow;
-    private DateTime _lastChromeChange = DateTime.Now;
 
     private enum MeetingState
     {
@@ -121,7 +119,6 @@ internal sealed class WindowService : AppService
         {
             Automation.RemoveAllEventHandlers();
 
-            _chromeWindow = null;
             _elementFindingCache.Clear();
             _layoutDuringMeetingCts = null;
             _layoutDuringMeetingTask = null;
@@ -145,12 +142,6 @@ internal sealed class WindowService : AppService
             }
 
             var (name, process) = result.Value;
-
-            if (name.Contains("- Google Chrome"))
-            {
-                HandleChromeWindowOpening(automationElement);
-                return;
-            }
 
             if (name.Contains("Microsoft Teams"))
             {
@@ -224,44 +215,6 @@ internal sealed class WindowService : AppService
     {
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
             || IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight);
-    }
-
-    private void HandleChromeWindowOpening(AutomationElement automationElement)
-    {
-        _chromeWindow = automationElement;
-        LogInfo($"Chrome window is {automationElement.Current.Name}");
-
-        Automation.AddAutomationPropertyChangedEventHandler(
-            automationElement,
-            TreeScope.Element,
-            (_, _) =>
-            {
-                if (DateTime.Now - _lastChromeChange < TimeSpan.FromSeconds(1))
-                {
-                    LogError(new InvalidOperationException("Chrome changed too fast"));
-                    return;
-                }
-
-                Task.Delay(100).Wait();
-                UpdateLayout();
-            },
-            WindowPattern.WindowVisualStateProperty
-        );
-
-        void UpdateLayout()
-        {
-            var currRect = automationElement.Current.BoundingRectangle;
-            LogInfo($"Chrome changed {currRect.X}x{currRect.Y}");
-
-            // if (_meetingState == MeetingState.Window
-            //     && IsNativelySnapped(automationElement, false, true, false))
-            // {
-            //     _lastChromeChange = DateTime.Now;
-            //     PutWindowInHorizontalHalf(automationElement, false, WindowPosInsertAfter.Top);
-            // }
-
-            UpdateTeamsMainWindowPosition();
-        }
     }
 
     private static bool IsNativelySnapped(AutomationElement automationElement, bool fullWidth, bool top, bool left)
@@ -730,18 +683,11 @@ internal sealed class WindowService : AppService
         }
         else
         {
-            if (_meetingWindowShareActive || ChromeIsTopRight())
+            if (_meetingWindowShareActive)
                 PutWindowInQuadrant(_teamsMainWindow, false, false, WindowPosInsertAfter.None);
             else if (_meetingState == MeetingState.Window)
                 PutWindowInQuadrant(_teamsMainWindow, false, true, WindowPosInsertAfter.None);
         }
-    }
-
-    private bool ChromeIsTopRight()
-    {
-        return _chromeWindow is not null
-            && IsAboutSize(_chromeWindow, HalvedWindowWidth, NativelySnappedWindowHeight)
-            && IsAboutPosition(_chromeWindow, left: false, top: true);
     }
 
 #pragma warning disable IDE0051
@@ -893,29 +839,7 @@ internal sealed class WindowService : AppService
                             cancellationToken
                         )
                     )
-                    .Concat(
-                        [
-                            Task.Run(UpdateTeamsMainWindowPosition, cancellationToken),
-                            ..state == MeetingState.None
-                                ? new[]
-                                {
-                                    Task.Run(
-                                        () =>
-                                        {
-                                            if (state == MeetingState.None
-                                                && _chromeWindow is not null
-                                                && IsNativelySnapped(_chromeWindow, false, true, false))
-                                            {
-                                                LogInfo("Restoring chrome");
-                                                MaximizeWindow(_chromeWindow);
-                                            }
-                                        },
-                                        cancellationToken
-                                    ),
-                                }
-                                : [],
-                        ]
-                    )
+                    .Concat([Task.Run(UpdateTeamsMainWindowPosition, cancellationToken)])
                     .ToArray();
                 await Task.WhenAll(tasks);
                 LogInfo($"--- Finished meeting layout to {state} ---");
@@ -960,7 +884,14 @@ internal sealed class WindowService : AppService
         CancellationToken cancellationToken
     )
     {
-        var processTask = Task.Run(() => Process.GetProcessById(automationElement.Current.ProcessId).ProcessName, cancellationToken);
+        var processTask = Task.Run(
+            () =>
+            {
+                using var process = Process.GetProcessById(automationElement.Current.ProcessId);
+                return process.ProcessName;
+            },
+            cancellationToken
+        );
         var name = TryGetName(automationElement);
         var start = DateTime.Now;
 
@@ -1010,7 +941,7 @@ internal sealed class WindowService : AppService
             return absoluteDifference < double.Epsilon;
         }
 
-        return (absoluteDifference / reference) < 0.05;
+        return (absoluteDifference / reference) < 0.02;
     }
 
     private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight)

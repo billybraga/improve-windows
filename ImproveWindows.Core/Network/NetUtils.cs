@@ -63,7 +63,7 @@ internal static class NetUtils
 
         var wlanInterface = wlanInterfaces.Single();
         var dot11PhyType = GetDot11PhyType(wlanInterface);
-        if (dot11PhyType != Dot11PhyType.He)
+        if (dot11PhyType is not (Dot11PhyType.He or Dot11PhyType.Vht))
         {
             logInfo($"{wlanInterface.Name} is not running in AX, got PHY type {dot11PhyType}");
             return false;

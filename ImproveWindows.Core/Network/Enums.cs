@@ -49,6 +49,7 @@ public enum Dot11PhyType : uint
     Hrdsss = 5,
     Erp = 6,
     Ht = 7,
+    Vht = 8,
     He = 10,
     IhvStart = 0x80000000,
     IhvEnd = 0xffffffff
