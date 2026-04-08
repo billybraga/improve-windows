@@ -13,3 +13,4 @@ RegisterWindowMessage
 CloseWindow
 GetWindowThreadProcessId
 RegisterWindowMessage
+SetForegroundWindow

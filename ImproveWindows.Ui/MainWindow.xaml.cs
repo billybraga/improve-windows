@@ -50,15 +50,15 @@ internal sealed partial class MainWindow : IDisposable
 #pragma warning disable CA2000
         var audioLevels = new AudioLevelsService();
         // StartService("Vpn", new VpnService());
-        StartService("MicMute", new MicMute(audioLevels));
-        StartService("AudioLevels", audioLevels);
-        StartService("Window", new WindowService());
-        StartService("Network", new NetworkService());
-        StartService("Memory", new MemoryService());
-        StartService("HdmiAudio", new HdmiAudioService());
+        RegisterService("MicMute", new MicMute(audioLevels));
+        RegisterService("AudioLevels", audioLevels);
+        RegisterService("Window", new WindowService(), false);
+        RegisterService("Network", new NetworkService());
+        RegisterService("Memory", new MemoryService());
+        RegisterService("HdmiAudio", new HdmiAudioService());
 #pragma warning restore CA2000
 
-        void StartService(string name, AppService service)
+        void RegisterService(string name, AppService service, bool start = true)
         {
             var serviceControl = new ServiceControl
             {
@@ -78,7 +78,10 @@ internal sealed partial class MainWindow : IDisposable
                 }
             };
 
-            var serviceInfos = new ServiceInfos(service.RunAsync(_cancellationTokenSource.Token), service);
+            var serviceInfos = new ServiceInfos(
+                start ? service.RunAsync(_cancellationTokenSource.Token) : Task.CompletedTask,
+                service
+            );
             _taskInfos.Add(serviceInfos);
 
             serviceControl.OnRestartClick += (_, _) =>

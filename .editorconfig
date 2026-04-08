@@ -137,6 +137,8 @@ dotnet_diagnostic.ca1848.severity = none
 dotnet_diagnostic.ca1852.severity = warning
 # Sometimes we want to use interfaces instead of types to avoid calling parts of the class we don't want, like using IReadonlyCollection
 dotnet_diagnostic.ca1859.severity = none
+# Expensive logging, don't care
+dotnet_diagnostic.CA1873.severity = none
 dotnet_diagnostic.ca2000.severity = warning
 dotnet_diagnostic.ca2002.severity = warning
 # We're an app, not a lib, so assume default await behaviour is ok

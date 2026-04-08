@@ -6,9 +6,9 @@ namespace ImproveWindows.Ui;
 internal partial class ServiceControl
 {
 #if DEBUG
-    private const int LineCount = 300;
+    private const int LineCount = 3000;
 #else
-    private const int LineCount = 30;
+    private const int LineCount = 300;
 #endif
     private const int MaxCharCount = LineCount * 40;
 

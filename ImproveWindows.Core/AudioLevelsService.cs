@@ -43,7 +43,7 @@ public class AudioLevelsService : AppService
         LogInfo("Starting");
         using var coreAudioController = new CoreAudioController();
         _coreAudioController = coreAudioController;
-        
+
         try
         {
             var defaultPlaybackSetup = ConfigureDefaultAudioPlaybackDevice();
@@ -164,7 +164,18 @@ public class AudioLevelsService : AppService
         _ = captureController.SessionCreated.Subscribe(ProcessSessionCreated);
         _ = captureController.SessionDisconnected.Subscribe(processCaptureSessionDisconnection);
 
-        foreach (var session in captureController)
+        IReadOnlyCollection<IAudioSession> audioSessions;
+        try
+        {
+            audioSessions = [.. captureController];
+        }
+        catch (Exception)
+        {
+            LogInfo($"Failed to get audio sessions for {captureDevice.GetDeviceName()}");
+            return;
+        }
+
+        foreach (var session in audioSessions)
         {
             ProcessSessionCreated(session);
         }

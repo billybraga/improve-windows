@@ -7,6 +7,7 @@ using ImproveWindows.Core.Services;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.UI.WindowsAndMessaging;
+using Point = System.Drawing.Point;
 
 namespace ImproveWindows.Ui;
 
@@ -43,12 +44,38 @@ internal sealed class WindowService : AppService
     private CancellationTokenSource? _layoutDuringMeetingCts;
     private Task? _layoutDuringMeetingTask;
     private AutomationElement? _teamsMainWindow;
+    private readonly object _lock = new();
+    private AutomationElement.AutomationElementInformation? _movingWindow;
+    private readonly IReadOnlyCollection<(string PartialName, Func<AutomationElement, CancellationToken, Task> Update)> _knownWindows;
 
     private enum MeetingState
     {
         None,
         Window,
         Thumbnail,
+    }
+
+    public WindowService()
+    {
+        _knownWindows =
+        [
+            ("Microsoft Teams", Update: HandleTeamsWindowOpeningAsync),
+            ("Improve Windows", (a, _) =>
+            {
+                PutWindowInHorizontalHalf(a, top: false, WindowPosInsertAfter.None);
+                return Task.CompletedTask;
+            }),
+            ("Mail", (a, _) =>
+            {
+                PutWindowInQuadrant(a, true, false, WindowPosInsertAfter.None);
+                return Task.CompletedTask;
+            }),
+            ("Calendar", (a, _) =>
+            {
+                PutWindowInQuadrant(a, true, true, WindowPosInsertAfter.None);
+                return Task.CompletedTask;
+            }),
+        ];
     }
 
     protected override async Task StartAsync(CancellationToken cancellationToken)
@@ -66,7 +93,20 @@ internal sealed class WindowService : AppService
                         return;
                     }
 
-                    using var handleWindowTask = HandleWindowAsync(automationElement, cancellationToken);
+                    bool isAlreadyMoving;
+                    lock (_lock)
+                    {
+                        isAlreadyMoving = _movingWindow?.NativeWindowHandle == automationElement.Current.NativeWindowHandle;
+                    }
+
+                    if (isAlreadyMoving)
+                    {
+                        LogInfo($"Skipped handling opening window because it's being moving: {automationElement.Current.Name}");
+                        return;
+                    }
+
+                    LogInfo($"Window opened: {automationElement.Current.Name}");
+                    using var handleWindowTask = HandleWindowAsync(automationElement, true, WindowPosInsertAfter.None, cancellationToken);
                     handleWindowTask
                         .GetAwaiter()
                         .GetResult();
@@ -90,7 +130,7 @@ internal sealed class WindowService : AppService
 
                         var tasks = currentWindows
                             .OfType<AutomationElement>()
-                            .Select(x => HandleWindowAsync(x, cancellationToken))
+                            .Select(x => HandleWindowAsync(x, true, WindowPosInsertAfter.None, cancellationToken))
                             .ToArray();
 
                         await Task.WhenAll(tasks);
@@ -129,7 +169,8 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private async Task HandleWindowAsync(AutomationElement automationElement, CancellationToken cancellationToken)
+    private async Task HandleWindowAsync(AutomationElement automationElement, bool moveKnownWindows, WindowPosInsertAfter windowPosInsertAfter,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -143,48 +184,29 @@ internal sealed class WindowService : AppService
 
             var (name, process) = result.Value;
 
-            if (name.Contains("Microsoft Teams"))
-            {
-                await HandleTeamsWindowOpeningAsync(automationElement, cancellationToken);
-                return;
-            }
-
-            if (name.Contains("Improve Windows"))
-            {
-                // PutWindowInQuadrant(automationElement, true, false);
-                const bool top = false;
-                RestoreWindowToQuadrant(
-                    automationElement,
-                    top,
-                    true,
-                    false,
-                    HalvedWindowHeight(top),
-                    WindowPosInsertAfter.None
-                );
-                return;
-            }
-
             if (name.StartsWith("Outlook", StringComparison.InvariantCulture) && !name.Contains("Mail") && !name.Contains("Calendar"))
             {
                 name = await WaitForDifferentNameAsync(name, automationElement, cancellationToken)
                     ?? name;
             }
 
-            if (name.Contains("Mail - "))
-            {
-                PutWindowInQuadrant(automationElement, true, false, WindowPosInsertAfter.None);
-                return;
-            }
+            var knownWindowNullable = _knownWindows.FirstOrDefault(x => name.Contains(x.PartialName));
 
-            if (name.Contains("Calendar - "))
+            if (knownWindowNullable != default)
             {
-                PutWindowInQuadrant(automationElement, true, true, WindowPosInsertAfter.None);
+                if (!moveKnownWindows)
+                {
+                    LogInfo($"Skipped known window {name}");
+                    return;
+                }
+
+                await knownWindowNullable.Update(automationElement, cancellationToken);
                 return;
             }
 
             if (_meetingState == MeetingState.Window && ShouldPutToLowerHalfInMeetings(automationElement, process))
             {
-                PutWindowInHorizontalHalf(automationElement, false, WindowPosInsertAfter.TopMost);
+                PutWindowInHorizontalHalf(automationElement, false, windowPosInsertAfter);
                 return;
             }
 
@@ -204,6 +226,31 @@ internal sealed class WindowService : AppService
             LogError(e);
         }
     }
+
+    //
+    //
+    //         if (_meetingState == MeetingState.Window && ShouldPutToLowerHalfInMeetings(automationElement, process))
+    //         {
+    //             PutWindowInHorizontalHalf(automationElement, false, windowPosInsertAfter);
+    //             return;
+    //         }
+    //
+    //         if (_meetingState is MeetingState.Thumbnail or MeetingState.None && ShouldBeFullScreen(automationElement, process))
+    //         {
+    //             MaximizeWindow(automationElement);
+    //             return;
+    //         }
+    //
+    //         // LogInfo($"Skipped window {name}");
+    //     }
+    //     catch (ElementNotAvailableException)
+    //     {
+    //     }
+    //     catch (Exception e)
+    //     {
+    //         LogError(e);
+    //     }
+    // }
 
     private static bool ShouldBeFullScreen(AutomationElement automationElement, string process)
     {
@@ -236,7 +283,7 @@ internal sealed class WindowService : AppService
             return;
         }
 
-        if (size is { Height: < 500, Width: < 500 })
+        if (size is { Width: < 500 })
         {
             HandleTeamsThumbnail(automationElement, size, cancellationToken);
         }
@@ -371,6 +418,7 @@ internal sealed class WindowService : AppService
 
         RestoreWindow(
             automationElement,
+            "Snapped top-right",
             x: GetPosX(false),
             y: TeamsShareWindowBottomPadding - topPadding,
             width: HalvedWindowWidth,
@@ -457,7 +505,7 @@ internal sealed class WindowService : AppService
     private void CustomSnapWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height,
         WindowPosInsertAfter insertAfter)
     {
-        RestoreWindowToQuadrant(automationElement, top, left, fullWidth, height, insertAfter);
+        RestoreWindow(automationElement, top, left, fullWidth, height, insertAfter);
     }
 
     private struct WindowPosInsertAfter
@@ -468,7 +516,7 @@ internal sealed class WindowService : AppService
         public static readonly WindowPosInsertAfter TopMost = new(new HWND(-1));
         public static readonly WindowPosInsertAfter None = new(default);
 
-        public HWND Value { get; private set; }
+        public HWND Value { get; }
 
         public WindowPosInsertAfter(HWND insertAfterWindow)
         {
@@ -476,15 +524,36 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private void RestoreWindowToQuadrant(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height,
-        WindowPosInsertAfter insertAfter)
+    private void RestoreWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height, WindowPosInsertAfter insertAfter)
     {
         var width = fullWidth ? FullWindowWidth : HalvedWindowWidth;
-        RestoreWindow(automationElement, GetPosX(left), GetPosY(top), width, height, insertAfter);
+
+        IReadOnlyCollection<string> positionNameValues =
+        [
+            top ? "top" : "bottom",
+            ..fullWidth
+                ? []
+                : new[]
+                {
+                    left ? "left" : "right",
+                },
+        ];
+
+        var positionNames = string.Join("-", positionNameValues);
+        RestoreWindow(
+            automationElement,
+            $"snap {positionNames}",
+            GetPosX(left),
+            GetPosY(top),
+            width,
+            height,
+            insertAfter
+        );
     }
 
 #pragma warning disable CA1822
-    private void RestoreWindow(AutomationElement automationElement, int x, int y, int width, int height, WindowPosInsertAfter insertAfter)
+    private void RestoreWindow(AutomationElement automationElement, string action, int x, int y, int width, int height,
+        WindowPosInsertAfter insertAfter)
 #pragma warning restore CA1822
     {
         var name = automationElement.Current.Name;
@@ -499,35 +568,66 @@ internal sealed class WindowService : AppService
             return;
         }
 
-        var windowHandle = new HWND(new IntPtr(automationElement.Current.NativeWindowHandle));
-        var placementResult = PInvoke.SetWindowPlacement(
-            windowHandle,
-            new WINDOWPLACEMENT
+        lock (_lock)
+        {
+            var window = automationElement.Current;
+            _movingWindow = window;
+
+            LogInfo(
+                $"Start {action} {window.Name} ({window.FrameworkId}, {window.ControlType.ProgrammaticName}, {window.ItemType}, {window.ClassName})"
+            );
+
+            try
             {
-                showCmd = SHOW_WINDOW_CMD.SW_RESTORE,
-                length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
+                var nativeWindowHandle = window.NativeWindowHandle;
+                var windowHandle = new HWND(new IntPtr(nativeWindowHandle));
+
+                var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
+
+                if (!setForegroundResult)
+                {
+                    throw new InvalidOperationException($"Error putting window {name} in foreground");
+                }
+
+                var placementResult = PInvoke.SetWindowPlacement(
+                    windowHandle,
+                    new WINDOWPLACEMENT
+                    {
+                        showCmd = SHOW_WINDOW_CMD.SW_RESTORE,
+                        rcNormalPosition = new RECT(x + ScreenOffsetLeft, y + ScreenOffsetTop, x + width, y + height),
+                        ptMinPosition = new Point(x + ScreenOffsetLeft, y + ScreenOffsetTop),
+                        ptMaxPosition = new Point(x + ScreenOffsetLeft, y + ScreenOffsetTop),
+                        length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
+                    }
+                );
+                
+                if (!placementResult)
+                {
+                    throw new InvalidOperationException($"Error code restoring window {name}");
+                }
+
+                var posResult = PInvoke.SetWindowPos(
+                    windowHandle,
+                    WindowPosInsertAfter.Top.Value,
+                    x + ScreenOffsetLeft,
+                    y + ScreenOffsetTop,
+                    width,
+                    height,
+                    SET_WINDOW_POS_FLAGS.SWP_NOZORDER
+                );
+
+                if (!posResult)
+                {
+                    throw new InvalidOperationException($"Error code {posResult} positioning window {name}");
+                }
             }
-        );
-
-        if (!placementResult)
-        {
-            throw new InvalidOperationException("Error code restoring window");
+            finally
+            {
+                _movingWindow = null;
+            }
         }
 
-        var posResult = PInvoke.SetWindowPos(
-            windowHandle,
-            insertAfter.Value,
-            x + ScreenOffsetLeft,
-            y + ScreenOffsetTop,
-            width,
-            height,
-            SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
-        );
-
-        if (!posResult)
-        {
-            throw new InvalidOperationException($"Error code {posResult} positioning window {name}");
-        }
+        LogInfo($"Finished {action} {automationElement.Current.Name}");
     }
 
     private static void MinimizeWindow(AutomationElement automationElement)
@@ -796,45 +896,11 @@ internal sealed class WindowService : AppService
                     .Select(x => Task.Run(
                             async () =>
                             {
-                                var automationElement = x.automationElement;
-                                try
-                                {
-                                    var name = await WaitForNameAsync(automationElement, cancellationToken);
-                                    if (automationElement.Current.BoundingRectangle.Height < 50)
-                                    {
-                                        await Task.Delay(1000, cancellationToken);
-                                    }
+                                var windowPosInsertAfter = x.previousWindow is not null
+                                    ? new WindowPosInsertAfter(x.previousWindow.Value)
+                                    : WindowPosInsertAfter.Top;
 
-                                    if (name is null)
-                                    {
-                                        return;
-                                    }
-
-                                    var windowPosInsertAfter = x.previousWindow is not null
-                                        ? new WindowPosInsertAfter(x.previousWindow.Value)
-                                        : WindowPosInsertAfter.Top;
-
-                                    if (_meetingState == MeetingState.Window && IsAboutSize(automationElement, FullWindowWidth, FreeScreenHeight))
-                                    {
-                                        LogInfo($"Lowering {name}");
-                                        PutWindowInHorizontalHalf(
-                                            automationElement,
-                                            false,
-                                            windowPosInsertAfter
-                                        );
-                                        return;
-                                    }
-
-                                    if (_meetingState != MeetingState.Window
-                                        && IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false)))
-                                    {
-                                        LogInfo($"Maximizing {name}");
-                                        MaximizeWindow(automationElement);
-                                    }
-                                }
-                                catch (ElementNotAvailableException)
-                                {
-                                }
+                                await HandleWindowAsync(x.automationElement, false, windowPosInsertAfter, cancellationToken);
                             },
                             cancellationToken
                         )
