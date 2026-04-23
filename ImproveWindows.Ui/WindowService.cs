@@ -204,13 +204,13 @@ internal sealed class WindowService : AppService
                 return;
             }
 
-            if (_meetingState == MeetingState.Window && ShouldPutToLowerHalfInMeetings(automationElement, process))
+            if (_meetingState == MeetingState.Window && ShouldPutToLowerHalfInMeetings(automationElement, name, process))
             {
                 PutWindowInHorizontalHalf(automationElement, false, windowPosInsertAfter);
                 return;
             }
 
-            if (_meetingState is MeetingState.Thumbnail or MeetingState.None && ShouldBeFullScreen(automationElement, process))
+            if (_meetingState is MeetingState.Thumbnail or MeetingState.None && ShouldBeFullScreen(automationElement, name, process))
             {
                 MaximizeWindow(automationElement);
                 return;
@@ -252,9 +252,9 @@ internal sealed class WindowService : AppService
     //     }
     // }
 
-    private static bool ShouldBeFullScreen(AutomationElement automationElement, string process)
+    private static bool ShouldBeFullScreen(AutomationElement automationElement, string name, string process)
     {
-        if (process.Contains("(Remote)", StringComparison.OrdinalIgnoreCase))
+        if (name.Contains("(Remote)", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -263,9 +263,9 @@ internal sealed class WindowService : AppService
             || IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false));
     }
 
-    private static bool ShouldPutToLowerHalfInMeetings(AutomationElement automationElement, string process)
+    private static bool ShouldPutToLowerHalfInMeetings(AutomationElement automationElement, string name, string process)
     {
-        if (process.Contains("(Remote)", StringComparison.OrdinalIgnoreCase))
+        if (name.Contains("(Remote)", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
