@@ -582,12 +582,12 @@ internal sealed class WindowService : AppService
                 var nativeWindowHandle = window.NativeWindowHandle;
                 var windowHandle = new HWND(new IntPtr(nativeWindowHandle));
 
-                var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
+                // var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
 
-                if (!setForegroundResult)
-                {
-                    throw new InvalidOperationException($"Error putting window {name} in foreground");
-                }
+                // if (!setForegroundResult)
+                // {
+                //     throw new InvalidOperationException($"Error putting window {name} in foreground");
+                // }
 
                 var placementResult = PInvoke.SetWindowPlacement(
                     windowHandle,
