@@ -52,7 +52,7 @@ internal sealed partial class MainWindow : IDisposable
         // StartService("Vpn", new VpnService());
         RegisterService("MicMute", new MicMute(audioLevels));
         RegisterService("AudioLevels", audioLevels);
-        RegisterService("Window", new WindowService(), false);
+        RegisterService("Window", new WindowService(), true);
         RegisterService("Network", new NetworkService());
         RegisterService("Memory", new MemoryService());
         RegisterService("HdmiAudio", new HdmiAudioService());

@@ -254,12 +254,22 @@ internal sealed class WindowService : AppService
 
     private static bool ShouldBeFullScreen(AutomationElement automationElement, string process)
     {
+        if (process.Contains("(Remote)", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
             || IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false));
     }
 
     private static bool ShouldPutToLowerHalfInMeetings(AutomationElement automationElement, string process)
     {
+        if (process.Contains("(Remote)", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
             || IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight);
     }
@@ -556,7 +566,6 @@ internal sealed class WindowService : AppService
         WindowPosInsertAfter insertAfter)
 #pragma warning restore CA1822
     {
-        var name = automationElement.Current.Name;
         if (IsAboutSize(automationElement, width, height)
             && IsAboutPosition(automationElement, x, y))
         {
@@ -570,24 +579,25 @@ internal sealed class WindowService : AppService
 
         lock (_lock)
         {
-            var window = automationElement.Current;
-            _movingWindow = window;
-
-            LogInfo(
-                $"Start {action} {window.Name} ({window.FrameworkId}, {window.ControlType.ProgrammaticName}, {window.ItemType}, {window.ClassName})"
-            );
-
             try
             {
+                var name = automationElement.Current.Name;
+                var window = automationElement.Current;
+                _movingWindow = window;
+
+                LogInfo(
+                    $"Start {action} {window.Name} ({window.FrameworkId}, {window.ControlType.ProgrammaticName}, {window.ItemType}, {window.ClassName})"
+                );
+
                 var nativeWindowHandle = window.NativeWindowHandle;
                 var windowHandle = new HWND(new IntPtr(nativeWindowHandle));
 
-                // var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
+                var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
 
-                // if (!setForegroundResult)
-                // {
-                //     throw new InvalidOperationException($"Error putting window {name} in foreground");
-                // }
+                if (!setForegroundResult)
+                {
+                    LogError(new InvalidOperationException($"Error putting window {name} in foreground"));
+                }
 
                 var placementResult = PInvoke.SetWindowPlacement(
                     windowHandle,
@@ -603,7 +613,7 @@ internal sealed class WindowService : AppService
                 
                 if (!placementResult)
                 {
-                    throw new InvalidOperationException($"Error code restoring window {name}");
+                    LogError(new InvalidOperationException($"Error code restoring window {name}"));
                 }
 
                 var posResult = PInvoke.SetWindowPos(
@@ -618,7 +628,7 @@ internal sealed class WindowService : AppService
 
                 if (!posResult)
                 {
-                    throw new InvalidOperationException($"Error code {posResult} positioning window {name}");
+                    LogError(new InvalidOperationException($"Error code {posResult} positioning window {name}"));
                 }
             }
             finally
