@@ -10,8 +10,6 @@ namespace ImproveWindows.Core;
 public sealed class NetworkService : AppService
 {
     private const int HighestGoodPing = 250;
-    private readonly Ping _googlePinger = new();
-    private readonly Ping _cfPinger = new();
     private readonly MovingAverage16 _movingAverage = new();
     private static readonly IPAddress CloudFlareDnsIpAddress = new([1, 1, 1, 1]);
 
@@ -35,6 +33,8 @@ public sealed class NetworkService : AppService
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
         using var wlanClient = WlanClient.CreateClient();
+        using var googlePinger = new Ping();
+        using var cfPinger = new Ping();
 
         LogInfo("Started");
         var netState = NetState.None;
@@ -110,7 +110,7 @@ public sealed class NetworkService : AppService
         {
             try
             {
-                var results = await Task.WhenAll(_googlePinger.SendPingAsync("google.com"), _cfPinger.SendPingAsync(CloudFlareDnsIpAddress));
+                var results = await Task.WhenAll(googlePinger.SendPingAsync("google.com"), cfPinger.SendPingAsync(CloudFlareDnsIpAddress));
                 var ipStatus = results.Min(x => x.Status);
                 var roundTripTime = (int) results.Min(x => x.RoundtripTime);
                 _movingAverage.Add((int) Math.Round((double) roundTripTime));
@@ -134,16 +134,5 @@ public sealed class NetworkService : AppService
                 return (PingState.Exception, $"Ping exception: {e}");
             }
         }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _googlePinger.Dispose();
-            _cfPinger.Dispose();
-        }
-
-        base.Dispose(disposing);
     }
 }

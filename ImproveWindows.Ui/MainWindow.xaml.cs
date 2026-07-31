@@ -74,7 +74,7 @@ internal sealed partial class MainWindow : IDisposable
                 serviceControl.SetStatus(args.Status, args.IsError);
                 if (args is { IsError: true, WasAlreadyError: false })
                 {
-                    _ = PInvoke.FlashWindow(new HWND(_windowInteropHelper.Handle), true);
+                    PInvoke.FlashWindow(new HWND(_windowInteropHelper.Handle), true);
                 }
             };
 
@@ -118,9 +118,7 @@ internal sealed partial class MainWindow : IDisposable
                 {
                     await Task.WhenAll(_taskInfos.Select(x => x.Task).ToArray());
                 }
-                catch (OperationCanceledException)
-                {
-                }
+                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex);

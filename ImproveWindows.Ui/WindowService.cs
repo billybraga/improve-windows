@@ -286,7 +286,7 @@ internal sealed class WindowService : AppService
     )
     {
         var size = automationElement.Current.BoundingRectangle;
-        if (IsAboutSize(automationElement, HalvedWindowWidth, FreeScreenHeight))
+        if (IsAboutSize(automationElement, HalvedWindowWidth, FullWindowHeight))
         {
             _teamsMainWindow = automationElement;
             LogInfo($"Skipped Teams main window (height {size.Height})");
@@ -592,12 +592,12 @@ internal sealed class WindowService : AppService
                 var nativeWindowHandle = window.NativeWindowHandle;
                 var windowHandle = new HWND(new IntPtr(nativeWindowHandle));
 
-                var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
-
-                if (!setForegroundResult)
-                {
-                    LogError(new InvalidOperationException($"Error putting window {name} in foreground"));
-                }
+                // var setForegroundResult = PInvoke.SetForegroundWindow(windowHandle);
+                //
+                // if (!setForegroundResult)
+                // {
+                //     LogError(new InvalidOperationException($"Error putting window {name} in foreground"));
+                // }
 
                 var placementResult = PInvoke.SetWindowPlacement(
                     windowHandle,
@@ -1017,7 +1017,7 @@ internal sealed class WindowService : AppService
             return absoluteDifference < double.Epsilon;
         }
 
-        return (absoluteDifference / reference) < 0.02;
+        return (absoluteDifference / reference) < 0.002;
     }
 
     private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight)
