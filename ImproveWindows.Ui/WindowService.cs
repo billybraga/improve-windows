@@ -34,6 +34,8 @@ internal sealed class WindowService : AppService
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 68;
     private const int TeamsShareWindowBottomPadding = 15;
+    private const double IsAboutThresholdRatioPrecise = 0.001;
+    private const double IsAboutThresholdRatioLoose = 0.005;
 
     private static readonly TimeSpan MaxWaitForName = TimeSpan.FromSeconds(5);
 
@@ -206,7 +208,7 @@ internal sealed class WindowService : AppService
 
             if (_meetingState == MeetingState.Window && ShouldPutToLowerHalfInMeetings(automationElement, name, process))
             {
-                PutWindowInHorizontalHalf(automationElement, false, windowPosInsertAfter);
+                PutWindowInHorizontalHalf(automationElement, false, windowPosInsertAfter, loose: true);
                 return;
             }
 
@@ -260,7 +262,7 @@ internal sealed class WindowService : AppService
         }
 
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
-            || IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false));
+            || IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false), loose: true);
     }
 
     private static bool ShouldPutToLowerHalfInMeetings(AutomationElement automationElement, string name, string process)
@@ -269,9 +271,9 @@ internal sealed class WindowService : AppService
         {
             return false;
         }
-        
+
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
-            || IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight);
+            || IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight, loose: true);
     }
 
     private static bool IsNativelySnapped(AutomationElement automationElement, bool fullWidth, bool top, bool left)
@@ -470,7 +472,7 @@ internal sealed class WindowService : AppService
         return (left ? 0 : (EffectiveScreenWidth / 2)) - WindowPadding;
     }
 
-    private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter)
+    private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter, bool loose = false)
     {
         CustomSnapWindow(
             automationElement,
@@ -478,7 +480,8 @@ internal sealed class WindowService : AppService
             true,
             true,
             HalvedWindowHeight(top),
-            insertAfter
+            insertAfter,
+            loose: true
         );
     }
 
@@ -512,10 +515,19 @@ internal sealed class WindowService : AppService
     //     );
     // }
 
-    private void CustomSnapWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height,
-        WindowPosInsertAfter insertAfter)
+#pragma warning disable CA1822
+    private void CustomSnapWindow(
+#pragma warning restore CA1822
+        AutomationElement automationElement,
+        bool top,
+        bool left,
+        bool fullWidth,
+        int height,
+        WindowPosInsertAfter insertAfter,
+        bool loose = false
+    )
     {
-        RestoreWindow(automationElement, top, left, fullWidth, height, insertAfter);
+        RestoreWindow(automationElement, top, left, fullWidth, height, insertAfter, loose: loose);
     }
 
     private struct WindowPosInsertAfter
@@ -534,14 +546,14 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private void RestoreWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height, WindowPosInsertAfter insertAfter)
+    private void RestoreWindow(AutomationElement automationElement, bool top, bool left, bool fullWidth, int height, WindowPosInsertAfter insertAfter, bool loose = false)
     {
         var width = fullWidth ? FullWindowWidth : HalvedWindowWidth;
 
         IReadOnlyCollection<string> positionNameValues =
         [
             top ? "top" : "bottom",
-            ..fullWidth
+            .. fullWidth
                 ? []
                 : new[]
                 {
@@ -557,17 +569,18 @@ internal sealed class WindowService : AppService
             GetPosY(top),
             width,
             height,
-            insertAfter
+            insertAfter,
+            loose: loose
         );
     }
 
 #pragma warning disable CA1822
     private void RestoreWindow(AutomationElement automationElement, string action, int x, int y, int width, int height,
-        WindowPosInsertAfter insertAfter)
+        WindowPosInsertAfter insertAfter, bool loose = false)
 #pragma warning restore CA1822
     {
-        if (IsAboutSize(automationElement, width, height)
-            && IsAboutPosition(automationElement, x, y))
+        if (IsAboutSize(automationElement, width, height, loose: loose)
+            && IsAboutPosition(automationElement, x, y, loose: loose))
         {
             // var currentRectangle = automationElement.Current.BoundingRectangle;
             // LogInfo(
@@ -610,7 +623,7 @@ internal sealed class WindowService : AppService
                         length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
                     }
                 );
-                
+
                 if (!placementResult)
                 {
                     LogError(new InvalidOperationException($"Error code restoring window {name}"));
@@ -1008,7 +1021,7 @@ internal sealed class WindowService : AppService
         return name;
     }
 
-    private static bool IsAbout(double value, double reference)
+    private static bool IsAbout(double value, double reference, bool loose = false)
     {
         var absoluteDifference = Math.Abs(value - reference);
 
@@ -1017,15 +1030,16 @@ internal sealed class WindowService : AppService
             return absoluteDifference < double.Epsilon;
         }
 
-        return (absoluteDifference / reference) < 0.002;
+        var threshold = loose ? IsAboutThresholdRatioLoose : IsAboutThresholdRatioPrecise;
+        return (absoluteDifference / reference) < threshold;
     }
 
-    private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight)
+    private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight, bool loose = false)
     {
         try
         {
-            return IsAbout(element.Current.BoundingRectangle.Height, referenceHeight)
-                && IsAbout(element.Current.BoundingRectangle.Width, referenceWidth);
+            return IsAbout(element.Current.BoundingRectangle.Height, referenceHeight, loose: loose)
+                && IsAbout(element.Current.BoundingRectangle.Width, referenceWidth, loose: loose);
         }
         catch (ElementNotAvailableException)
         {
@@ -1033,17 +1047,17 @@ internal sealed class WindowService : AppService
         }
     }
 
-    private static bool IsAboutPosition(AutomationElement element, bool top, bool left)
+    private static bool IsAboutPosition(AutomationElement element, bool top, bool left, bool loose = false)
     {
-        return IsAboutPosition(element, GetPosX(left), GetPosY(top));
+        return IsAboutPosition(element, GetPosX(left), GetPosY(top), loose: loose);
     }
 
-    private static bool IsAboutPosition(AutomationElement element, int x, int y)
+    private static bool IsAboutPosition(AutomationElement element, int x, int y, bool loose = false)
     {
         try
         {
-            return IsAbout(element.Current.BoundingRectangle.Left, x)
-                && IsAbout(element.Current.BoundingRectangle.Top, y);
+            return IsAbout(element.Current.BoundingRectangle.Left, x, loose: loose)
+                && IsAbout(element.Current.BoundingRectangle.Top, y, loose: loose);
         }
         catch (ElementNotAvailableException)
         {
