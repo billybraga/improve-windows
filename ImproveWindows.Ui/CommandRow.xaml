@@ -1,0 +1,23 @@
+<UserControl x:Class="ImproveWindows.Ui.CommandRow"
+             x:ClassModifier="internal"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="200" d:DesignWidth="400">
+    <Border BorderBrush="Gray" BorderThickness="1" Margin="0,0,0,8" Padding="5">
+        <DockPanel LastChildFill="True">
+            <DockPanel DockPanel.Dock="Top">
+                <Label MouseDown="DeleteBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Remove">✕</Label>
+                <Label MouseDown="RestartBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Restart">⟳</Label>
+                <Label MouseDown="StopBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Stop">⛔</Label>
+                <TextBlock Name="CommandText" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center"></TextBlock>
+            </DockPanel>
+            <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Top"></Label>
+            <ScrollViewer Name="ScrollViewer" Padding="5px" MaxHeight="150">
+                <TextBlock Name="Logs" TextWrapping="Wrap"></TextBlock>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,26 @@
+<UserControl x:Class="ImproveWindows.Ui.CommandRunnerControl"
+             x:ClassModifier="internal"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="400">
+    <Grid>
+        <Border>
+            <DockPanel LastChildFill="True">
+                <DockPanel DockPanel.Dock="Top">
+                    <Label Name="ServiceName" FontWeight="Bold" Content="Commands"></Label>
+                    <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Right"></Label>
+                </DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,5">
+                    <Button Content="Add" Click="AddBtnClick" DockPanel.Dock="Right" Width="60"/>
+                    <TextBox Name="NewCommandInput" KeyDown="NewCommandInputKeyDown" VerticalContentAlignment="Center"/>
+                </DockPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Name="CommandsPanel"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

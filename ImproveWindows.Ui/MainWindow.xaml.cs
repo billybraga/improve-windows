@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
+using ImproveWindows.Core.Services.CommandRunner;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 
@@ -56,7 +57,38 @@ internal sealed partial class MainWindow : IDisposable
         RegisterService("Network", new NetworkService());
         RegisterService("Memory", new MemoryService());
         RegisterService("HdmiAudio", new HdmiAudioService());
+        RegisterCommandRunnerService();
 #pragma warning restore CA2000
+
+        void RegisterCommandRunnerService()
+        {
+            var service = new CommandRunnerService(new CommandStore());
+            var control = new CommandRunnerControl();
+            control.Initialize(service);
+
+            service.OnStatusChange += (_, args) =>
+            {
+                control.SetStatus(args.Status, args.IsError);
+                if (args is { IsError: true, WasAlreadyError: false })
+                {
+                    PInvoke.FlashWindow(new HWND(_windowInteropHelper.Handle), true);
+                }
+            };
+
+            var serviceInfos = new ServiceInfos(service.RunAsync(_cancellationTokenSource.Token), service);
+            _taskInfos.Add(serviceInfos);
+
+            MainGrid.ColumnDefinitions.Add(
+                new ColumnDefinition
+                {
+                    Width = new GridLength(1, GridUnitType.Star),
+                }
+            );
+
+            _ = MainGrid.Children.Add(control);
+
+            control.SetValue(Grid.ColumnProperty, MainGrid.Children.Count - 1);
+        }
 
         void RegisterService(string name, AppService service, bool start = true)
         {
