@@ -10,11 +10,7 @@ public sealed class CommandStore
 
     public CommandStore(string? filePath = null)
     {
-        _filePath = filePath ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ImproveWindows",
-            "commands.json"
-        );
+        _filePath = filePath ?? Path.Combine(AppContext.BaseDirectory, "commands.json");
     }
 
     public List<ManagedCommand> Load()
