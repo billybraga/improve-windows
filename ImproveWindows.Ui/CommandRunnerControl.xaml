@@ -9,9 +9,12 @@
     <Grid>
         <Border>
             <DockPanel LastChildFill="True">
+                <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Top"></Label>
                 <DockPanel DockPanel.Dock="Top">
                     <Label Name="ServiceName" FontWeight="Bold" Content="Commands"></Label>
-                    <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Right"></Label>
+                    <Label MouseDown="RestartBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Restart">⟳</Label>
+                    <Label MouseDown="StopBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Stop">⛔</Label>
+                    <Label MouseDown="RestartFailedBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Restart failed">♻</Label>
                 </DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,5">
                     <Button Content="Add" Click="AddBtnClick" DockPanel.Dock="Right" Width="60"/>

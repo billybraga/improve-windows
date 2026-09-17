@@ -78,6 +78,16 @@ internal sealed partial class MainWindow : IDisposable
             var serviceInfos = new ServiceInfos(service.RunAsync(_cancellationTokenSource.Token), service);
             _taskInfos.Add(serviceInfos);
 
+            control.OnRestartClick += (_, _) =>
+            {
+                serviceInfos.Restart();
+            };
+
+            control.OnStopClick += (_, _) =>
+            {
+                serviceInfos.Stop();
+            };
+
             MainGrid.ColumnDefinitions.Add(
                 new ColumnDefinition
                 {

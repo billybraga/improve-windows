@@ -137,6 +137,17 @@ public sealed class CommandRunnerService : AppService
         _store.Save(definitions);
     }
 
+    public async Task RestartFailedAsync()
+    {
+        List<CommandProcess> commands;
+        lock (_commands)
+        {
+            commands = _commands.Where(c => _erroredCommands.Contains(c.Definition.Id)).ToList();
+        }
+
+        await Task.WhenAll(commands.Select(c => c.RestartAsync()));
+    }
+
     private async Task StopAllAsync()
     {
         List<CommandProcess> commands;

@@ -10,6 +10,9 @@ internal partial class CommandRunnerControl
     private readonly Dictionary<Guid, CommandRow> _rows = new();
     private CommandRunnerService? _service;
 
+    public event EventHandler<RoutedEventArgs>? OnRestartClick;
+    public event EventHandler<RoutedEventArgs>? OnStopClick;
+
     public CommandRunnerControl()
     {
         InitializeComponent();
@@ -59,6 +62,21 @@ internal partial class CommandRunnerControl
     private void AddBtnClick(object sender, RoutedEventArgs e)
     {
         SubmitNewCommand();
+    }
+
+    private void RestartFailedBtnClick(object sender, RoutedEventArgs e)
+    {
+        _ = _service?.RestartFailedAsync();
+    }
+
+    private void RestartBtnClick(object sender, RoutedEventArgs e)
+    {
+        OnRestartClick?.Invoke(sender, e);
+    }
+
+    private void StopBtnClick(object sender, RoutedEventArgs e)
+    {
+        OnStopClick?.Invoke(sender, e);
     }
 
     private void NewCommandInputKeyDown(object sender, KeyEventArgs e)
