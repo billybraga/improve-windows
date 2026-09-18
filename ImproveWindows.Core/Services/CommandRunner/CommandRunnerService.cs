@@ -20,6 +20,8 @@ public sealed class CommandRunnerService : AppService
 
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
+        ResetCommands();
+
         foreach (var definition in _store.Load())
         {
             AddCommandProcess(definition);
@@ -77,6 +79,24 @@ public sealed class CommandRunnerService : AppService
         }
 
         UpdateAggregateStatus();
+    }
+
+    private void ResetCommands()
+    {
+        List<CommandProcess> stale;
+        lock (_commands)
+        {
+            stale = [.._commands];
+            _commands.Clear();
+            _erroredCommands.Clear();
+        }
+
+        foreach (var command in stale)
+        {
+            command.OnStatusChange -= OnCommandStatusChange;
+            CommandRemoved?.Invoke(this, command);
+            command.Dispose();
+        }
     }
 
     private CommandProcess AddCommandProcess(ManagedCommand definition)

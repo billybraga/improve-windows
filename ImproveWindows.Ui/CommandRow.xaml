@@ -12,6 +12,7 @@
                 <Label MouseDown="DeleteBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Remove">✕</Label>
                 <Label MouseDown="RestartBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Restart">⟳</Label>
                 <Label MouseDown="StopBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Stop">⛔</Label>
+                <Label MouseDown="CopyBtnClick" FontWeight="Bold" DockPanel.Dock="Right" ToolTip="Copy command">⧉</Label>
                 <TextBlock Name="CommandText" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center"></TextBlock>
             </DockPanel>
             <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Top"></Label>

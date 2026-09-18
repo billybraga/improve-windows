@@ -71,4 +71,9 @@ internal partial class CommandRow
     {
         OnDeleteClick?.Invoke(sender, e);
     }
+
+    private void CopyBtnClick(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(CommandText.Text);
+    }
 }
