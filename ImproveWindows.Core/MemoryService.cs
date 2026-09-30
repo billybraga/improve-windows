@@ -5,7 +5,7 @@ namespace ImproveWindows.Core;
 
 public class MemoryService : AppService
 {
-    private const int MaxMemory = 400;
+    private const int MaxMemory = 1000;
     private const int IdealMemory = MaxMemory / 2;
 
     protected override async Task StartAsync(CancellationToken cancellationToken)

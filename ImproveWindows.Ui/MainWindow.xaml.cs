@@ -55,8 +55,8 @@ internal sealed partial class MainWindow : IDisposable
         RegisterService("AudioLevels", audioLevels);
         RegisterService("Window", new WindowService(), true);
         RegisterService("Network", new NetworkService());
-        RegisterService("Memory", new MemoryService());
-        RegisterService("HdmiAudio", new HdmiAudioService());
+        // RegisterService("Memory", new MemoryService());
+        // RegisterService("HdmiAudio", new HdmiAudioService());
         RegisterCommandRunnerService();
 #pragma warning restore CA2000
 
