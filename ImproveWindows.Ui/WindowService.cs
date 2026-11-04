@@ -14,22 +14,17 @@ namespace ImproveWindows.Ui;
 internal sealed class WindowService : AppService
 {
     private const float TopRatio = 0.45f;
-    private const decimal WindowsZoom = 1.25m;
-    private const int NativeScreenWidth = 3840;
-    private const int NativeScreenHeight = 2160;
-    private const int EffectiveScreenWidth = 3840;
-    private const int EffectiveScreenHeight = 2160;
-    private const int ActualTaskBarHeight = (int) (48 * WindowsZoom);
-    private const int ScreenOffsetLeft = (NativeScreenWidth - EffectiveScreenWidth) / 2;
-    private const int ScreenOffsetTop = (NativeScreenHeight - EffectiveScreenHeight) / 2;
-#pragma warning disable CA1508
-    private const int EffectiveTaskBarHeight = ScreenOffsetTop == 0 ? ActualTaskBarHeight : 0;
-#pragma warning restore CA1508
-    private const int FreeScreenHeight = EffectiveScreenHeight - EffectiveTaskBarHeight;
-    private const int WindowPadding = 8;
+    private const float TeamsThumbnailLeftRatio = 800f / 3840;
+    private const float TeamsThumbnailTopRatio = 100f / 2160;
+    private const decimal WindowsZoom = 1.0m;
+    private const int ScreenWidth = 2560;
+    private const int ScreenHeight = 1440;
+    private const int TaskBarHeight = (int) (48 * WindowsZoom);
+    private const int FreeScreenHeight = ScreenHeight - TaskBarHeight;
+    private const int WindowPadding = 7;
     private const int FullWindowHeight = FreeScreenHeight + WindowPadding;
-    private const int HalvedWindowWidth = (EffectiveScreenWidth / 2) + (WindowPadding * 2);
-    private const int FullWindowWidth = EffectiveScreenWidth + (WindowPadding * 2);
+    private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
+    private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
     private const int NativelySnappedWindowHeight = FreeScreenHeight / 2 + WindowPadding;
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 68;
@@ -273,7 +268,21 @@ internal sealed class WindowService : AppService
         }
 
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
+            || IsMaximized(automationElement)
             || IsAboutSize(automationElement, FullWindowWidth, FullWindowHeight, loose: true);
+    }
+
+    private static bool IsMaximized(AutomationElement automationElement)
+    {
+        try
+        {
+            return automationElement.TryGetCurrentPattern(WindowPattern.Pattern, out var pattern)
+                && ((WindowPattern) pattern).Current.WindowVisualState == WindowVisualState.Maximized;
+        }
+        catch (ElementNotAvailableException)
+        {
+            return false;
+        }
     }
 
     private static bool IsNativelySnapped(AutomationElement automationElement, bool fullWidth, bool top, bool left)
@@ -389,8 +398,8 @@ internal sealed class WindowService : AppService
 
             // Keep the thumbnail top-most
             WindowPosInsertAfter.TopMost.Value,
-            800,
-            100,
+            (int) Math.Round(ScreenWidth * TeamsThumbnailLeftRatio),
+            (int) Math.Round(ScreenHeight * TeamsThumbnailTopRatio),
             (int) size.Width,
             (int) size.Height,
             default
@@ -469,7 +478,7 @@ internal sealed class WindowService : AppService
     [Pure]
     private static int GetPosX(bool left)
     {
-        return (left ? 0 : (EffectiveScreenWidth / 2)) - WindowPadding;
+        return (left ? 0 : (ScreenWidth / 2)) - WindowPadding;
     }
 
     private void PutWindowInHorizontalHalf(AutomationElement automationElement, bool top, WindowPosInsertAfter insertAfter, bool loose = false)
@@ -617,9 +626,9 @@ internal sealed class WindowService : AppService
                     new WINDOWPLACEMENT
                     {
                         showCmd = SHOW_WINDOW_CMD.SW_RESTORE,
-                        rcNormalPosition = new RECT(x + ScreenOffsetLeft, y + ScreenOffsetTop, x + width, y + height),
-                        ptMinPosition = new Point(x + ScreenOffsetLeft, y + ScreenOffsetTop),
-                        ptMaxPosition = new Point(x + ScreenOffsetLeft, y + ScreenOffsetTop),
+                        rcNormalPosition = new RECT(x, y, x + width, y + height),
+                        ptMinPosition = new Point(x, y),
+                        ptMaxPosition = new Point(x, y),
                         length = (uint) Marshal.SizeOf<WINDOWPLACEMENT>(),
                     }
                 );
@@ -632,8 +641,8 @@ internal sealed class WindowService : AppService
                 var posResult = PInvoke.SetWindowPos(
                     windowHandle,
                     WindowPosInsertAfter.Top.Value,
-                    x + ScreenOffsetLeft,
-                    y + ScreenOffsetTop,
+                    x,
+                    y,
                     width,
                     height,
                     SET_WINDOW_POS_FLAGS.SWP_NOZORDER
