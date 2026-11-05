@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using ImproveWindows.Core.Services;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Gdi;
 using Windows.Win32.UI.WindowsAndMessaging;
 using Point = System.Drawing.Point;
 
@@ -16,16 +17,14 @@ internal sealed class WindowService : AppService
     private const float TopRatio = 0.45f;
     private const float TeamsThumbnailLeftRatio = 800f / 3840;
     private const float TeamsThumbnailTopRatio = 100f / 2160;
-    private const decimal WindowsZoom = 1.0m;
-    private const int ScreenWidth = 2560;
-    private const int ScreenHeight = 1440;
-    private const int TaskBarHeight = (int) (48 * WindowsZoom);
-    private const int FreeScreenHeight = ScreenHeight - TaskBarHeight;
-    private const int WindowPadding = 7;
-    private const int FullWindowHeight = FreeScreenHeight + WindowPadding;
-    private const int HalvedWindowWidth = (ScreenWidth / 2) + (WindowPadding * 2);
-    private const int FullWindowWidth = ScreenWidth + (WindowPadding * 2);
-    private const int NativelySnappedWindowHeight = FreeScreenHeight / 2 + WindowPadding;
+    private static int ScreenWidth { get; set; } = 2560;
+    private static int ScreenHeight { get; set; } = 1440;
+    private static int FreeScreenHeight { get; set; } = 1392;
+    private static int WindowPadding { get; set; } = 7;
+    private static int FullWindowHeight => FreeScreenHeight + WindowPadding;
+    private static int HalvedWindowWidth => (ScreenWidth / 2) + (WindowPadding * 2);
+    private static int FullWindowWidth => ScreenWidth + (WindowPadding * 2);
+    private static int NativelySnappedWindowHeight => FreeScreenHeight / 2 + WindowPadding;
     private const int TeamsShareWindowStatusBarPadding = 36;
     private const int TeamsShareWindowToolbarPadding = 68;
     private const int TeamsShareWindowBottomPadding = 15;
@@ -77,6 +76,8 @@ internal sealed class WindowService : AppService
 
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
+        LoadScreenMetrics();
+
         try
         {
             Automation.AddAutomationEventHandler(
@@ -164,6 +165,29 @@ internal sealed class WindowService : AppService
             _meetingWindowShareActive = false;
             _teamsMeeting = null;
         }
+    }
+
+    private void LoadScreenMetrics()
+    {
+        var monitor = PInvoke.MonitorFromPoint(new Point(0, 0), MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+        var monitorInfo = new MONITORINFO { cbSize = (uint) Marshal.SizeOf<MONITORINFO>() };
+
+        if (!PInvoke.GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            LogError(new InvalidOperationException("Error getting primary monitor info, keeping previous screen metrics"));
+            return;
+        }
+
+        ScreenWidth = monitorInfo.rcMonitor.Width;
+        ScreenHeight = monitorInfo.rcMonitor.Height;
+        FreeScreenHeight = monitorInfo.rcWork.Height;
+
+        // Invisible resize border Windows adds around normal windows
+        WindowPadding = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSIZEFRAME)
+            + PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXPADDEDBORDER)
+            - PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXBORDER);
+
+        LogInfo($"Screen {ScreenWidth}x{ScreenHeight}, free height {FreeScreenHeight}, window padding {WindowPadding}");
     }
 
     private async Task HandleWindowAsync(AutomationElement automationElement, bool moveKnownWindows, WindowPosInsertAfter windowPosInsertAfter,
@@ -304,7 +328,7 @@ internal sealed class WindowService : AppService
             return;
         }
 
-        if (size is { Width: < 500 })
+        if (size is { Width: < 500 } || automationElement.Current.Name.StartsWith("Meeting compact view", StringComparison.Ordinal))
         {
             HandleTeamsThumbnail(automationElement, size, cancellationToken);
         }
