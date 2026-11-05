@@ -71,6 +71,11 @@ internal sealed class WindowService : AppService
                 PutWindowInQuadrant(a, true, true, WindowPosInsertAfter.None);
                 return Task.CompletedTask;
             }),
+            ("YouTube Music", (a, _) =>
+            {
+                PutWindowInQuadrant(a, false, true, WindowPosInsertAfter.None);
+                return Task.CompletedTask;
+            }),
         ];
     }
 
