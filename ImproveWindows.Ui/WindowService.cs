@@ -17,6 +17,7 @@ internal sealed class WindowService : AppService
     private const float TopRatio = 0.45f;
     private const float TeamsThumbnailLeftRatio = 800f / 3840;
     private const float TeamsThumbnailTopRatio = 100f / 2160;
+    private const int UhdScreenWidth = 3840;
     private static int ScreenWidth { get; set; } = 2560;
     private static int ScreenHeight { get; set; } = 1440;
     private static int FreeScreenHeight { get; set; } = 1392;
@@ -286,7 +287,14 @@ internal sealed class WindowService : AppService
         }
 
         return process.Contains("rider", StringComparison.OrdinalIgnoreCase)
+            || (IsClaudeWindow(name, process) && ScreenWidth < UhdScreenWidth)
             || IsAboutSize(automationElement, FullWindowWidth, HalvedWindowHeight(top: false), loose: true);
+    }
+
+    private static bool IsClaudeWindow(string name, string process)
+    {
+        return process.Equals("claude", StringComparison.OrdinalIgnoreCase)
+            && name.Equals("Claude", StringComparison.Ordinal);
     }
 
     private static bool ShouldPutToLowerHalfInMeetings(AutomationElement automationElement, string name, string process)
@@ -1069,7 +1077,7 @@ internal sealed class WindowService : AppService
         }
 
         var threshold = loose ? IsAboutThresholdRatioLoose : IsAboutThresholdRatioPrecise;
-        return (absoluteDifference / reference) < threshold;
+        return (absoluteDifference / Math.Abs(reference)) < threshold;
     }
 
     private static bool IsAboutSize(AutomationElement element, double referenceWidth, double referenceHeight, bool loose = false)
