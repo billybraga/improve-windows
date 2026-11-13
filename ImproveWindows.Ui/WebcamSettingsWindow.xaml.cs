@@ -17,9 +17,17 @@ internal sealed partial class WebcamSettingsWindow
     private readonly List<Row> _rows = [];
     private readonly DispatcherTimer _refreshTimer;
     private bool _isRefreshing;
+    private WebcamPreview? _preview;
+    private bool _isClosed;
 
-    private sealed record Row(WebcamControl Control, Slider Slider, Label Value, CheckBox? Auto)
+    private sealed record Row(WebcamControl Control, Slider Slider, Button Minus, Button Plus, Label Value, CheckBox? Auto)
     {
+        public bool IsEnabled
+        {
+            get => Slider.IsEnabled;
+            set => Slider.IsEnabled = Minus.IsEnabled = Plus.IsEnabled = value;
+        }
+
         public WebcamSetting Setting => Control.Setting with
         {
             Value = (int) Math.Round(Slider.Value),
@@ -47,6 +55,44 @@ internal sealed partial class WebcamSettingsWindow
         _refreshTimer.Start();
 
         _service.BeginEditing();
+
+        Loaded += async (_, _) => await StartPreviewAsync();
+    }
+
+    private async Task StartPreviewAsync()
+    {
+        try
+        {
+            var preview = await WebcamPreview.StartAsync(
+                WebcamService.CameraNameMatch,
+                Dispatcher,
+                bitmap =>
+                {
+                    Preview.Source = bitmap;
+                    PreviewStatus.Visibility = Visibility.Collapsed;
+                }
+            );
+
+            if (_isClosed)
+            {
+                if (preview is not null)
+                {
+                    await preview.DisposeAsync();
+                }
+
+                return;
+            }
+
+            _preview = preview;
+            if (preview is null)
+            {
+                PreviewStatus.Text = "Camera not found for preview";
+            }
+        }
+        catch (Exception e)
+        {
+            PreviewStatus.Text = $"Preview unavailable: {e.Message}";
+        }
     }
 
     private void AddRow(WebcamControl control)
@@ -66,13 +112,19 @@ internal sealed partial class WebcamSettingsWindow
             IsSnapToTickEnabled = true,
             VerticalAlignment = VerticalAlignment.Center,
         };
+        var minus = new Button { Content = "−", Width = 24, Margin = new Thickness(4, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
+        var plus = new Button { Content = "+", Width = 24, Margin = new Thickness(4, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
         var value = new Label { Content = control.Setting.Value, VerticalAlignment = VerticalAlignment.Center };
         var auto = control.AutoSupported
             ? new CheckBox { Content = "Auto", IsChecked = control.Setting.Auto, VerticalAlignment = VerticalAlignment.Center }
             : null;
 
-        var row = new Row(control, slider, value, auto);
+        var row = new Row(control, slider, minus, plus, value, auto);
         _rows.Add(row);
+
+        // The slider clamps to its range and the ValueChanged handler applies it
+        minus.Click += (_, _) => slider.Value -= control.Step;
+        plus.Click += (_, _) => slider.Value += control.Step;
 
         slider.ValueChanged += (_, _) =>
         {
@@ -92,7 +144,7 @@ internal sealed partial class WebcamSettingsWindow
             };
         }
 
-        UIElement?[] cells = [name, slider, value, auto];
+        UIElement?[] cells = [name, minus, slider, plus, value, auto];
         for (var column = 0; column < cells.Length; column++)
         {
             if (cells[column] is not { } cell)
@@ -118,7 +170,7 @@ internal sealed partial class WebcamSettingsWindow
         foreach (var row in _rows)
         {
             var setting = row.Setting;
-            row.Slider.IsEnabled = !setting.Auto && !setting.IsDrivenByCamera(settings);
+            row.IsEnabled = !setting.Auto && !setting.IsDrivenByCamera(settings);
         }
     }
 
@@ -129,7 +181,7 @@ internal sealed partial class WebcamSettingsWindow
         _isRefreshing = true;
         try
         {
-            foreach (var row in _rows.Where(x => !x.Slider.IsEnabled))
+            foreach (var row in _rows.Where(x => !x.IsEnabled))
             {
                 if (current.TryGetValue(row.Control.Setting.Property, out var control))
                 {
@@ -175,8 +227,15 @@ internal sealed partial class WebcamSettingsWindow
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        _isClosed = true;
         _refreshTimer.Stop();
         _camera.Dispose();
+
+        if (_preview is not null)
+        {
+            _ = _preview.DisposeAsync().AsTask();
+            _preview = null;
+        }
 
         // Without save, this puts the saved settings back
         _service.EndEditing();
