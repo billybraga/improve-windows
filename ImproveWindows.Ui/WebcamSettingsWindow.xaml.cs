@@ -17,6 +17,8 @@ internal sealed partial class WebcamSettingsWindow
     private readonly List<Row> _rows = [];
     private readonly DispatcherTimer _refreshTimer;
     private bool _isRefreshing;
+    private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(3);
+
     private WebcamPreview? _preview;
     private bool _isClosed;
 
@@ -87,6 +89,17 @@ internal sealed partial class WebcamSettingsWindow
             if (preview is null)
             {
                 PreviewStatus.Text = "Camera not found for preview";
+                return;
+            }
+
+            // While another app (Teams) streams, taking control succeeds but no frame ever comes:
+            // give the camera back instead of holding it
+            await Task.Delay(FirstFrameTimeout);
+            if (Preview.Source is null && _preview == preview)
+            {
+                _preview = null;
+                await preview.DisposeAsync();
+                PreviewStatus.Text = "No preview, the camera is probably used by another app";
             }
         }
         catch (Exception e)

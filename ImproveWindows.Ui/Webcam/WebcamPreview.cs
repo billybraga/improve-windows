@@ -68,6 +68,7 @@ internal sealed class WebcamPreview : IAsyncDisposable
                 .First();
             await source.SetFormatAsync(largestFormat);
 
+            // Not scaled down here: asking the reader for a smaller size costs more CPU than copying the full frame
             var frameReader = await mediaCapture.CreateFrameReaderAsync(source, MediaEncodingSubtypes.Bgra8);
             frameReader.AcquisitionMode = MediaFrameReaderAcquisitionMode.Realtime;
 
