@@ -14,6 +14,7 @@ namespace ImproveWindows.Ui;
 
 internal sealed class WindowService : AppService
 {
+    private const string TeamsWindowName = "Microsoft Teams";
     private const float TopRatio = 0.45f;
     private const float TeamsThumbnailLeftRatio = 800f / 3840;
     private const float TeamsThumbnailTopRatio = 100f / 2160;
@@ -52,11 +53,20 @@ internal sealed class WindowService : AppService
         Thumbnail,
     }
 
+    // In the order they're handled when the service starts during a meeting
+    private enum TeamsWindowKind
+    {
+        Main,
+        Meeting,
+        Share,
+        Thumbnail,
+    }
+
     public WindowService()
     {
         _knownWindows =
         [
-            ("Microsoft Teams", Update: HandleTeamsWindowOpeningAsync),
+            (TeamsWindowName, Update: HandleTeamsWindowOpeningAsync),
             ("Improve Windows", (a, _) =>
             {
                 PutWindowInHorizontalHalf(a, top: false, WindowPosInsertAfter.None);
@@ -132,8 +142,30 @@ internal sealed class WindowService : AppService
                                 )
                             );
 
-                        var tasks = currentWindows
-                            .OfType<AutomationElement>()
+                        var windows = currentWindows.OfType<AutomationElement>().ToArray();
+                        var teamsWindows = windows
+                            .Where(x => TryGetName(x)?.Contains(TeamsWindowName, StringComparison.Ordinal) == true)
+                            .ToArray();
+
+                        // When starting during a meeting, the Teams windows are handled one by one in an order where each step
+                        // sees the state the previous ones set: the meeting needs the main window known,
+                        // and the share window and compact view need the meeting started
+                        foreach (var (teamsWindow, kind) in teamsWindows
+                                     .Select(x => (Window: x, Kind: ClassifyTeamsWindow(x)))
+                                     .OrderBy(x => x.Kind))
+                        {
+                            try
+                            {
+                                LogInfo($"Found Teams {kind} window: {teamsWindow.Current.Name}");
+                                await HandleTeamsWindowAsync(teamsWindow, kind, cancellationToken);
+                            }
+                            catch (ElementNotAvailableException)
+                            {
+                            }
+                        }
+
+                        var tasks = windows
+                            .Except(teamsWindows)
                             .Select(x => HandleWindowAsync(x, true, WindowPosInsertAfter.None, cancellationToken))
                             .ToArray();
 
@@ -333,26 +365,69 @@ internal sealed class WindowService : AppService
         CancellationToken cancellationToken
     )
     {
-        var size = automationElement.Current.BoundingRectangle;
-        if (IsAboutSize(automationElement, HalvedWindowWidth, FullWindowHeight))
+        await HandleTeamsWindowAsync(automationElement, ClassifyTeamsWindow(automationElement), cancellationToken);
+    }
+
+    private async Task HandleTeamsWindowAsync(AutomationElement automationElement, TeamsWindowKind kind, CancellationToken cancellationToken)
+    {
+        switch (kind)
         {
-            _teamsMainWindow = automationElement;
-            LogInfo($"Skipped Teams main window (height {size.Height})");
-            return;
+            case TeamsWindowKind.Main:
+                _teamsMainWindow = automationElement;
+                LogInfo($"Skipped Teams main window (height {automationElement.Current.BoundingRectangle.Height})");
+                break;
+            case TeamsWindowKind.Thumbnail:
+                HandleTeamsThumbnail(automationElement, automationElement.Current.BoundingRectangle, cancellationToken);
+                break;
+            case TeamsWindowKind.Share:
+                HandleTeamsMeetingShareWindow(automationElement);
+                break;
+            case TeamsWindowKind.Meeting:
+                await HandleTeamsMeetingWindowOpeningAsync(automationElement, cancellationToken);
+                break;
+        }
+    }
+
+    private TeamsWindowKind ClassifyTeamsWindow(AutomationElement automationElement)
+    {
+        var name = automationElement.Current.Name;
+        var size = automationElement.Current.BoundingRectangle;
+
+        if (size is { Width: < 500 } || name.StartsWith("Meeting compact view", StringComparison.Ordinal))
+        {
+            return TeamsWindowKind.Thumbnail;
         }
 
-        if (size is { Width: < 500 } || automationElement.Current.Name.StartsWith("Meeting compact view", StringComparison.Ordinal))
+        if (name.StartsWith("Shared content", StringComparison.Ordinal))
         {
-            HandleTeamsThumbnail(automationElement, size, cancellationToken);
+            return TeamsWindowKind.Share;
         }
-        else if (_meetingState == MeetingState.Window)
+
+        // The size alone isn't enough: during a meeting the main window is in a quadrant
+        if (HasButton(automationElement, "Leave"))
         {
-            HandleTeamsMeetingShareWindow(automationElement);
+            return TeamsWindowKind.Meeting;
         }
-        else
+
+        if (IsAboutSize(automationElement, HalvedWindowWidth, FullWindowHeight) || HasButton(automationElement, "Activity"))
         {
-            await HandleTeamsMeetingWindowOpeningAsync(automationElement, cancellationToken);
+            return TeamsWindowKind.Main;
         }
+
+        // Not loaded yet (e.g. the meeting pre-join screen): guess from the meeting state
+        return _meetingState == MeetingState.Window ? TeamsWindowKind.Share : TeamsWindowKind.Meeting;
+    }
+
+    private static bool HasButton(AutomationElement automationElement, string name)
+    {
+        return automationElement.FindFirst(
+                TreeScope.Descendants,
+                new AndCondition(
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                    new PropertyCondition(AutomationElement.NameProperty, name)
+                )
+            )
+            is not null;
     }
 
     private async Task HandleTeamsMeetingWindowOpeningAsync(AutomationElement automationElement, CancellationToken cancellationToken)
