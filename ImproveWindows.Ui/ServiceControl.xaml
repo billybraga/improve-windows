@@ -10,7 +10,7 @@
         <Border>
             <DockPanel LastChildFill="True">
                 <Label Name="Status" FontWeight="Bold" DockPanel.Dock="Top"></Label>
-                <DockPanel DockPanel.Dock="Top">
+                <DockPanel Name="Header" DockPanel.Dock="Top">
                     <Label Name="ServiceName" FontWeight="Bold"></Label>
                     <Label MouseDown="RestartBtnClick" FontWeight="Bold">⟳</Label>
                     <Label MouseDown="StopBtnClick" FontWeight="Bold">⛔</Label>

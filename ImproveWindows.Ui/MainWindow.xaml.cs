@@ -55,6 +55,9 @@ internal sealed partial class MainWindow : IDisposable
         RegisterService("AudioLevels", audioLevels);
         RegisterService("Window", new WindowService(), true);
         RegisterService("Network", new NetworkService());
+        var webcam = new WebcamService();
+        RegisterService("Webcam", webcam)
+            .AddAction("💾", "Save the current camera settings", webcam.SaveCurrentSettings);
         // RegisterService("Memory", new MemoryService());
         // RegisterService("HdmiAudio", new HdmiAudioService());
         RegisterCommandRunnerService();
@@ -100,7 +103,7 @@ internal sealed partial class MainWindow : IDisposable
             control.SetValue(Grid.ColumnProperty, MainGrid.Children.Count - 1);
         }
 
-        void RegisterService(string name, AppService service, bool start = true)
+        ServiceControl RegisterService(string name, AppService service, bool start = true)
         {
             var serviceControl = new ServiceControl
             {
@@ -146,6 +149,8 @@ internal sealed partial class MainWindow : IDisposable
             _ = MainGrid.Children.Add(serviceControl);
 
             serviceControl.SetValue(Grid.ColumnProperty, MainGrid.Children.Count - 1);
+
+            return serviceControl;
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace ImproveWindows.Ui;
@@ -52,6 +53,18 @@ internal partial class ServiceControl
                 Status.Foreground = isError ? Brushes.Red : Brushes.Green;
             }
         );
+    }
+
+    public void AddAction(string text, string toolTip, Action onClick)
+    {
+        var label = new Label
+        {
+            Content = text,
+            ToolTip = toolTip,
+            FontWeight = FontWeights.Bold,
+        };
+        label.MouseDown += (_, _) => onClick();
+        _ = Header.Children.Add(label);
     }
 
     private void RestartBtnClick(object sender, RoutedEventArgs e)
