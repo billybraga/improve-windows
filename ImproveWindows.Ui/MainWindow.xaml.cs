@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using ImproveWindows.Core;
 using ImproveWindows.Core.Services;
 using ImproveWindows.Core.Services.CommandRunner;
+using ImproveWindows.Ui.Webcam;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 
@@ -19,6 +20,7 @@ internal sealed partial class MainWindow : IDisposable
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly List<ServiceInfos> _taskInfos = [];
     private readonly WindowInteropHelper _windowInteropHelper;
+    private WebcamSettingsWindow? _webcamSettingsWindow;
 
     private sealed record ServiceInfos
     {
@@ -57,7 +59,7 @@ internal sealed partial class MainWindow : IDisposable
         RegisterService("Network", new NetworkService());
         var webcam = new WebcamService();
         RegisterService("Webcam", webcam)
-            .AddAction("💾", "Save the current camera settings", webcam.SaveCurrentSettings);
+            .AddAction("⚙", "Camera settings", () => OpenWebcamSettings(webcam));
         // RegisterService("Memory", new MemoryService());
         // RegisterService("HdmiAudio", new HdmiAudioService());
         RegisterCommandRunnerService();
@@ -152,6 +154,29 @@ internal sealed partial class MainWindow : IDisposable
 
             return serviceControl;
         }
+    }
+
+    private void OpenWebcamSettings(WebcamService service)
+    {
+        if (_webcamSettingsWindow is not null)
+        {
+            _ = _webcamSettingsWindow.Activate();
+            return;
+        }
+
+        // The settings window owns and disposes the camera
+#pragma warning disable CA2000
+        var camera = UvcCamera.Open(WebcamService.CameraNameMatch);
+#pragma warning restore CA2000
+        if (camera is null)
+        {
+            _ = MessageBox.Show(this, $"No camera matching {WebcamService.CameraNameMatch}", "Webcam settings");
+            return;
+        }
+
+        _webcamSettingsWindow = new WebcamSettingsWindow(service, camera) { Owner = this };
+        _webcamSettingsWindow.Closed += (_, _) => _webcamSettingsWindow = null;
+        _webcamSettingsWindow.Show();
     }
 
     protected override void OnClosing(CancelEventArgs e)

@@ -10,7 +10,7 @@ namespace ImproveWindows.Ui;
 /// </summary>
 internal sealed class WebcamService : AppService
 {
-    private const string CameraNameMatch = "C615";
+    public const string CameraNameMatch = "C615";
     private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(15);
 
     // The camera can take a few seconds to come back after resume / unlock
@@ -19,6 +19,7 @@ internal sealed class WebcamService : AppService
     private readonly WebcamSettingsStore _store = new();
     private readonly SemaphoreSlim _checkNow = new(0);
     private bool? _wasConnected;
+    private volatile bool _isEditing;
 
     protected override async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -53,43 +54,39 @@ internal sealed class WebcamService : AppService
         }
     }
 
-    public void SaveCurrentSettings()
+    public void BeginEditing()
     {
-        _ = Task.Run(
-            () =>
-            {
-                try
-                {
-                    var current = UvcCamera.Read(CameraNameMatch);
-                    if (current is null)
-                    {
-                        LogInfo($"Can't save, no camera matching {CameraNameMatch}");
-                        return;
-                    }
+        _isEditing = true;
+        SetStatus("Editing settings");
+    }
 
-                    _store.Save(current.Value.Settings);
-                    LogInfo($"Saved {current.Value.Settings.Count} settings from {current.Value.CameraName} to {_store.FilePath}");
-                    foreach (var setting in current.Value.Settings)
-                    {
-                        LogInfo($"  {Describe(setting)}");
-                    }
+    public void EndEditing()
+    {
+        _isEditing = false;
+        _ = _checkNow.Release();
+    }
 
-                    _ = _checkNow.Release();
-                }
-                catch (Exception e)
-                {
-                    LogError(e);
-                }
-            }
-        );
+    public void SaveSettings(string cameraName, IReadOnlyCollection<WebcamSetting> settings)
+    {
+        _store.Save(settings);
+        LogInfo($"Saved {settings.Count} settings from {cameraName} to {_store.FilePath}");
+        foreach (var setting in settings)
+        {
+            LogInfo($"  {Describe(setting)}");
+        }
     }
 
     private void EnsureSettings()
     {
+        if (_isEditing)
+        {
+            return;
+        }
+
         var saved = _store.Load();
         if (saved is null)
         {
-            SetStatus("No saved settings, set them in Logitech Camera Settings then click 💾");
+            SetStatus("No saved settings, set them with ⚙");
             return;
         }
 
@@ -114,6 +111,7 @@ internal sealed class WebcamService : AppService
         _wasConnected = true;
 
         var drifted = saved
+            .Where(s => !s.IsDrivenByCamera(saved))
             .Where(s => current.Value.Settings.FirstOrDefault(c => c.Kind == s.Kind && c.Property == s.Property) is not { } c || !s.Matches(c))
             .ToArray();
 

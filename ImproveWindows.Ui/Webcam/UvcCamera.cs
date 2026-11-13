@@ -6,7 +6,7 @@ namespace ImproveWindows.Ui.Webcam;
 /// <summary>
 /// Reads and writes UVC image settings through the DirectShow IAMVideoProcAmp and IAMCameraControl interfaces.
 /// </summary>
-internal static class UvcCamera
+internal sealed class UvcCamera : IDisposable
 {
     public const string ProcAmpKind = "ProcAmp";
     public const string CameraControlKind = "CameraControl";
@@ -69,49 +69,25 @@ internal static class UvcCamera
         int Get(int property, out int value, out int flags);
     }
 
+    private object? _filter;
+
+    public string Name { get; }
+
+    private UvcCamera(object filter, string name)
+    {
+        _filter = filter;
+        Name = name;
+    }
+
     /// <summary>
     /// Returns the current settings of the first camera whose name contains <paramref name="nameMatch"/>, or null if it isn't connected.
     /// </summary>
     public static (string CameraName, IReadOnlyList<WebcamSetting> Settings)? Read(string nameMatch)
     {
-        var filter = Open(nameMatch, out var cameraName);
-        if (filter is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            var settings = new List<WebcamSetting>();
-
-            if (filter is IAMVideoProcAmp procAmp)
-            {
-                for (var i = 0; i < ProcAmpNames.Length; i++)
-                {
-                    if (procAmp.GetRange(i, out _, out _, out _, out _, out _) == 0 && procAmp.Get(i, out var value, out var flags) == 0)
-                    {
-                        settings.Add(new WebcamSetting(ProcAmpKind, ProcAmpNames[i], value, (flags & AutoFlag) != 0));
-                    }
-                }
-            }
-
-            if (filter is IAMCameraControl cameraControl)
-            {
-                for (var i = 0; i < CameraControlNames.Length; i++)
-                {
-                    if (cameraControl.GetRange(i, out _, out _, out _, out _, out _) == 0 && cameraControl.Get(i, out var value, out var flags) == 0)
-                    {
-                        settings.Add(new WebcamSetting(CameraControlKind, CameraControlNames[i], value, (flags & AutoFlag) != 0));
-                    }
-                }
-            }
-
-            return (cameraName!, settings);
-        }
-        finally
-        {
-            _ = Marshal.ReleaseComObject(filter);
-        }
+        using var camera = Open(nameMatch);
+        return camera is null
+            ? null
+            : (camera.Name, camera.GetControls().Select(x => x.Setting).ToArray());
     }
 
     /// <summary>
@@ -119,42 +95,17 @@ internal static class UvcCamera
     /// </summary>
     public static IReadOnlyList<(WebcamSetting Setting, int Result)>? Write(string nameMatch, IReadOnlyCollection<WebcamSetting> settings)
     {
-        var filter = Open(nameMatch, out _);
-        if (filter is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            var results = new List<(WebcamSetting, int)>();
-
-            foreach (var setting in settings)
-            {
-                var flags = setting.Auto ? AutoFlag : ManualFlag;
-                var result = setting.Kind switch
-                {
-                    ProcAmpKind when filter is IAMVideoProcAmp procAmp
-                        => procAmp.Set(Array.IndexOf(ProcAmpNames, setting.Property), setting.Value, flags),
-                    CameraControlKind when filter is IAMCameraControl cameraControl
-                        => cameraControl.Set(Array.IndexOf(CameraControlNames, setting.Property), setting.Value, flags),
-                    _ => unchecked((int) 0x80004002), // E_NOINTERFACE
-                };
-                results.Add((setting, result));
-            }
-
-            return results;
-        }
-        finally
-        {
-            _ = Marshal.ReleaseComObject(filter);
-        }
+        using var camera = Open(nameMatch);
+        return camera is null
+            ? null
+            : settings.Select(x => (x, camera.Set(x))).ToArray();
     }
 
-    private static object? Open(string nameMatch, out string? cameraName)
+    /// <summary>
+    /// Keeps the first camera whose name contains <paramref name="nameMatch"/> open until disposed, or returns null if it isn't connected.
+    /// </summary>
+    public static UvcCamera? Open(string nameMatch)
     {
-        cameraName = null;
-
         var deviceEnumType = Type.GetTypeFromCLSID(SystemDeviceEnumClsid, throwOnError: true)!;
         var deviceEnum = (ICreateDevEnum) Activator.CreateInstance(deviceEnumType)!;
 
@@ -198,8 +149,7 @@ internal static class UvcCamera
 
                         var baseFilterIid = BaseFilterIid;
                         moniker.BindToObject(null!, null, ref baseFilterIid, out var filter);
-                        cameraName = name;
-                        return filter;
+                        return new UvcCamera(filter, name);
                     }
                     finally
                     {
@@ -217,6 +167,76 @@ internal static class UvcCamera
         finally
         {
             _ = Marshal.ReleaseComObject(deviceEnum);
+        }
+    }
+
+    public IReadOnlyList<WebcamControl> GetControls()
+    {
+        ObjectDisposedException.ThrowIf(_filter is null, this);
+
+        var controls = new List<WebcamControl>();
+
+        if (_filter is IAMVideoProcAmp procAmp)
+        {
+            for (var i = 0; i < ProcAmpNames.Length; i++)
+            {
+                if (procAmp.GetRange(i, out var min, out var max, out var step, out var defaultValue, out var caps) == 0
+                    && procAmp.Get(i, out var value, out var flags) == 0)
+                {
+                    controls.Add(
+                        new WebcamControl(
+                            new WebcamSetting(ProcAmpKind, ProcAmpNames[i], value, (flags & AutoFlag) != 0),
+                            min, max, step, defaultValue, (caps & AutoFlag) != 0
+                        )
+                    );
+                }
+            }
+        }
+
+        if (_filter is IAMCameraControl cameraControl)
+        {
+            for (var i = 0; i < CameraControlNames.Length; i++)
+            {
+                if (cameraControl.GetRange(i, out var min, out var max, out var step, out var defaultValue, out var caps) == 0
+                    && cameraControl.Get(i, out var value, out var flags) == 0)
+                {
+                    controls.Add(
+                        new WebcamControl(
+                            new WebcamSetting(CameraControlKind, CameraControlNames[i], value, (flags & AutoFlag) != 0),
+                            min, max, step, defaultValue, (caps & AutoFlag) != 0
+                        )
+                    );
+                }
+            }
+        }
+
+        return controls;
+    }
+
+    /// <summary>
+    /// Returns the HRESULT of the write.
+    /// </summary>
+    public int Set(WebcamSetting setting)
+    {
+        ObjectDisposedException.ThrowIf(_filter is null, this);
+
+        var flags = setting.Auto ? AutoFlag : ManualFlag;
+        return setting.Kind switch
+        {
+            ProcAmpKind when _filter is IAMVideoProcAmp procAmp
+                => procAmp.Set(Array.IndexOf(ProcAmpNames, setting.Property), setting.Value, flags),
+            CameraControlKind when _filter is IAMCameraControl cameraControl
+                => cameraControl.Set(Array.IndexOf(CameraControlNames, setting.Property), setting.Value, flags),
+            _ => unchecked((int) 0x80004002), // E_NOINTERFACE
+        };
+    }
+
+    public void Dispose()
+    {
+        if (_filter is not null)
+        {
+            _ = Marshal.ReleaseComObject(_filter);
+            _filter = null;
         }
     }
 }

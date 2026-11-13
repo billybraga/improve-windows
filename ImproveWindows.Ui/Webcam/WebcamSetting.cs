@@ -9,4 +9,12 @@ internal sealed record WebcamSetting(string Kind, string Property, int Value, bo
     {
         return current.Auto == Auto && (Auto || current.Value == Value);
     }
+
+    /// <summary>
+    /// Auto exposure drives the gain too: writing it succeeds but the camera keeps its own value.
+    /// </summary>
+    public bool IsDrivenByCamera(IEnumerable<WebcamSetting> allSettings)
+    {
+        return Property == "Gain" && allSettings.Any(x => x is { Property: "Exposure", Auto: true });
+    }
 }
