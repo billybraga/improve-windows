@@ -280,6 +280,10 @@ internal sealed class WindowService : AppService
         catch (ElementNotAvailableException)
         {
         }
+        catch (OperationCanceledException)
+        {
+            // A newer meeting layout replaced this one
+        }
         catch (Exception e)
         {
             LogError(e);
@@ -343,10 +347,20 @@ internal sealed class WindowService : AppService
 
     private static bool IsMaximized(AutomationElement automationElement)
     {
+        return HasVisualState(automationElement, WindowVisualState.Maximized);
+    }
+
+    private static bool IsMinimized(AutomationElement automationElement)
+    {
+        return HasVisualState(automationElement, WindowVisualState.Minimized);
+    }
+
+    private static bool HasVisualState(AutomationElement automationElement, WindowVisualState state)
+    {
         try
         {
             return automationElement.TryGetCurrentPattern(WindowPattern.Pattern, out var pattern)
-                && ((WindowPattern) pattern).Current.WindowVisualState == WindowVisualState.Maximized;
+                && ((WindowPattern) pattern).Current.WindowVisualState == state;
         }
         catch (ElementNotAvailableException)
         {
@@ -393,7 +407,7 @@ internal sealed class WindowService : AppService
         var name = automationElement.Current.Name;
         var size = automationElement.Current.BoundingRectangle;
 
-        if (size is { Width: < 500 } || name.StartsWith("Meeting compact view", StringComparison.Ordinal))
+        if (name.StartsWith("Meeting compact view", StringComparison.Ordinal))
         {
             return TeamsWindowKind.Thumbnail;
         }
@@ -403,11 +417,18 @@ internal sealed class WindowService : AppService
             return TeamsWindowKind.Share;
         }
 
-        // The size alone isn't enough: during a meeting the main window is in a quadrant
+        // Before the size check: in compact view the meeting window is minimized, so it's tiny
         if (HasButton(automationElement, "Leave"))
         {
             return TeamsWindowKind.Meeting;
         }
+
+        if (size is { Width: < 500 })
+        {
+            return TeamsWindowKind.Thumbnail;
+        }
+
+        // The size alone isn't enough: during a meeting the main window is in a quadrant
 
         if (IsAboutSize(automationElement, HalvedWindowWidth, FullWindowHeight) || HasButton(automationElement, "Activity"))
         {
@@ -878,7 +899,11 @@ internal sealed class WindowService : AppService
                 }
             );
 
-            PutWindowInQuadrant(automationElement, true, true, WindowPosInsertAfter.None);
+            // Minimized when the service starts while the meeting is in compact view: restoring it would leave compact view
+            if (!IsMinimized(automationElement))
+            {
+                PutWindowInQuadrant(automationElement, true, true, WindowPosInsertAfter.None);
+            }
 
             UpdateMeetingLayout(MeetingState.Window, serviceCancellationToken);
 
