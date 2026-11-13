@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using ImproveWindows.Ui.Webcam;
 
@@ -65,8 +66,12 @@ internal sealed partial class WebcamSettingsWindow
     {
         try
         {
+            // Frames at the box's size in physical pixels, so nothing larger than what's shown is copied
+            var dpi = VisualTreeHelper.GetDpi(PreviewBox);
             var preview = await WebcamPreview.StartAsync(
                 WebcamService.CameraNameMatch,
+                (uint) Math.Round(PreviewBox.Width * dpi.DpiScaleX),
+                (uint) Math.Round(PreviewBox.Height * dpi.DpiScaleY),
                 Dispatcher,
                 bitmap =>
                 {
