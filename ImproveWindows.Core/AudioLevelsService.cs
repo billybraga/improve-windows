@@ -27,8 +27,6 @@ public class AudioLevelsService : AppService
     private bool _initialized;
     private IAudioController? _coreAudioController;
 
-    public bool? IsMicMuteState => _teamsCaptureSession?.IsMuted ?? _coreAudioController?.DefaultCaptureDevice?.IsMuted;
-
     private static readonly IReadOnlyCollection<LevelState> Levels =
     [
         TeamsNotificationsLevel,
@@ -196,44 +194,6 @@ public class AudioLevelsService : AppService
             _teamsCaptureSession = null;
             UpdateStatus();
         }
-    }
-
-    public bool? ChangeMicMuteState()
-    {
-        bool isMuted;
-        IDevice captureDevice;
-        IAudioSession? session;
-        if (_teamsCaptureSession is not null)
-        {
-            session = _teamsCaptureSession;
-            isMuted = _teamsCaptureSession.IsMuted;
-            captureDevice = _teamsCaptureSession.Device;
-        }
-        else if (_coreAudioController is not null)
-        {
-            session = null;
-            captureDevice = _coreAudioController.DefaultCaptureDevice;
-            isMuted = captureDevice.IsMuted;
-        }
-        else
-        {
-            return null;
-        }
-
-        UpdateStatus();
-        var newMuteState = !isMuted;
-        var action = newMuteState
-            ? "Muting"
-            : "Opening";
-        LogInfo($"{action} device {captureDevice.GetDeviceName()}");
-        _ = captureDevice.Mute(newMuteState);
-        if (session != null)
-        {
-            LogInfo($"Muting session {session.DisplayName}");
-            session.IsMuted = newMuteState;
-        }
-
-        return newMuteState;
     }
 
     private void UpdateStatus()

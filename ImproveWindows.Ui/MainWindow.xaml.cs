@@ -51,10 +51,8 @@ internal sealed partial class MainWindow : IDisposable
         _windowInteropHelper = new WindowInteropHelper(this);
 
 #pragma warning disable CA2000
-        var audioLevels = new AudioLevelsService();
         // StartService("Vpn", new VpnService());
-        RegisterService("MicMute", new MicMute(audioLevels));
-        RegisterService("AudioLevels", audioLevels);
+        RegisterService("AudioLevels", new AudioLevelsService());
         RegisterService("Window", new WindowService(), true);
         RegisterService("Network", new NetworkService());
         var webcam = new WebcamService();

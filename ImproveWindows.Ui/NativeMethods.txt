@@ -1,8 +1,6 @@
 SendInput
 EnumWindows
 SetWindowPos
-RegisterHotKey
-UnregisterHotKey
 FlashWindow
 ShowWindow
 SetWindowPlacement
