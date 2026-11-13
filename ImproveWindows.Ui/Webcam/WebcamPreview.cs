@@ -6,11 +6,12 @@ using System.Windows.Threading;
 using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
+using Windows.Media.MediaProperties;
 
 namespace ImproveWindows.Ui.Webcam;
 
 /// <summary>
-/// Streams the camera into a WPF bitmap. Opened in shared read-only mode so it works while another app (Teams) uses the camera.
+/// Streams the camera at its full resolution into a WPF bitmap.
 /// </summary>
 internal sealed class WebcamPreview : IAsyncDisposable
 {
@@ -49,19 +50,25 @@ internal sealed class WebcamPreview : IAsyncDisposable
         var mediaCapture = new MediaCapture();
         try
         {
+            // Exclusive control is needed to pick the full resolution (1080p); it fails when another app (Teams) has the camera
             await mediaCapture.InitializeAsync(
                 new MediaCaptureInitializationSettings
                 {
                     SourceGroup = group,
-                    SharingMode = MediaCaptureSharingMode.SharedReadOnly,
+                    SharingMode = MediaCaptureSharingMode.ExclusiveControl,
                     MemoryPreference = MediaCaptureMemoryPreference.Cpu,
                     StreamingCaptureMode = StreamingCaptureMode.Video,
                 }
             );
 
             var source = mediaCapture.FrameSources.Values.First(x => x.Info.SourceKind == MediaFrameSourceKind.Color);
-            // Shared mode can't ask for Bgra8 conversion, so frames come in the camera's format and are converted in OnFrameArrived
-            var frameReader = await mediaCapture.CreateFrameReaderAsync(source);
+            var largestFormat = source.SupportedFormats
+                .OrderByDescending(x => x.VideoFormat.Width * x.VideoFormat.Height)
+                .ThenByDescending(x => (double) x.FrameRate.Numerator / x.FrameRate.Denominator)
+                .First();
+            await source.SetFormatAsync(largestFormat);
+
+            var frameReader = await mediaCapture.CreateFrameReaderAsync(source, MediaEncodingSubtypes.Bgra8);
             frameReader.AcquisitionMode = MediaFrameReaderAcquisitionMode.Realtime;
 
             var preview = new WebcamPreview(mediaCapture, frameReader, dispatcher, onBitmapCreated);
@@ -91,16 +98,12 @@ internal sealed class WebcamPreview : IAsyncDisposable
         }
 
         using var frame = sender.TryAcquireLatestFrame();
-        var sourceBitmap = frame?.VideoMediaFrame?.SoftwareBitmap;
-        if (sourceBitmap is null)
+        var softwareBitmap = frame?.VideoMediaFrame?.SoftwareBitmap;
+        if (softwareBitmap is null || softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8)
         {
             _isRendering = 0;
             return;
         }
-
-        using var softwareBitmap = sourceBitmap.BitmapPixelFormat == BitmapPixelFormat.Bgra8
-            ? SoftwareBitmap.Copy(sourceBitmap)
-            : SoftwareBitmap.Convert(sourceBitmap, BitmapPixelFormat.Bgra8);
 
         var width = softwareBitmap.PixelWidth;
         var height = softwareBitmap.PixelHeight;

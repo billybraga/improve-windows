@@ -91,7 +91,7 @@ internal sealed partial class WebcamSettingsWindow
         }
         catch (Exception e)
         {
-            PreviewStatus.Text = $"Preview unavailable: {e.Message}";
+            PreviewStatus.Text = $"No preview, the camera is probably used by another app\n{e.Message}";
         }
     }
 
