@@ -67,6 +67,19 @@ internal partial class ServiceControl
         _ = Header.Children.Add(label);
     }
 
+    public void AddButton(string text, string toolTip, Action onClick)
+    {
+        var button = new Button
+        {
+            Content = text,
+            ToolTip = toolTip,
+            Padding = new Thickness(8, 3, 8, 3),
+            Margin = new Thickness(5, 2, 0, 2),
+        };
+        button.Click += (_, _) => onClick();
+        _ = Buttons.Children.Add(button);
+    }
+
     private void RestartBtnClick(object sender, RoutedEventArgs e)
     {
         Logs.Text = string.Empty;

@@ -55,6 +55,13 @@ internal sealed partial class MainWindow : IDisposable
         RegisterService("AudioLevels", new AudioLevelsService());
         RegisterService("Window", new WindowService(), true);
         RegisterService("Network", new NetworkService());
+        var actions = new ActionsService();
+        var actionsControl = RegisterService("Actions", actions);
+        foreach (var (label, toolTip, run) in actions.Actions)
+        {
+            actionsControl.AddButton(label, toolTip, () => actions.Run(label, run));
+        }
+
         var webcam = new WebcamService();
         RegisterService("Webcam", webcam)
             .AddAction("⚙", "Camera settings", () => OpenWebcamSettings(webcam));

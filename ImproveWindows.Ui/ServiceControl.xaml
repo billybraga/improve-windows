@@ -15,6 +15,7 @@
                     <Label MouseDown="RestartBtnClick" FontWeight="Bold">⟳</Label>
                     <Label MouseDown="StopBtnClick" FontWeight="Bold">⛔</Label>
                 </DockPanel>
+                <WrapPanel Name="Buttons" DockPanel.Dock="Top"></WrapPanel>
                 <ScrollViewer Name="ScrollViewer" Padding="5px">
                     <TextBlock Name="Logs" TextWrapping="Wrap"></TextBlock>
                 </ScrollViewer>
